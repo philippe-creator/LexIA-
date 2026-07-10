@@ -4,12 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from loguru import logger
-from api.core.database import get_db, SessionLocal, Conversation
+from core.database import get_db, SessionLocal, Conversation
 from api.core.dependencies import CurrentUser
 from api.repositories.conversation_repo import ConversationRepository
 from api.schemas.chat import ChatRequest, ChatResponse, Citation
 from retrieval.hybrid_retriever import retrieve
-from processing.indexer import DOMAINS
+from core.domains import DOMAINS
 from generation.llm_client import generate, generate_stream
 from generation.prompt_builder import build_prompt, format_citations, extract_suggested_queries
 

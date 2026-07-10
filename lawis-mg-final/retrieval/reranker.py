@@ -1,7 +1,7 @@
 import math
 import threading
 from loguru import logger
-from api.core.config import settings
+from core.config import settings
 
 _reranker = None
 _reranker_loaded = False

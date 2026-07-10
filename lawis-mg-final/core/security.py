@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 import bcrypt
-from api.core.config import settings
+from core.config import settings
 
 # bcrypt ne prend en compte que les 72 premiers octets du mot de passe (limite de
 # l'algorithme) — on tronque explicitement, exactement comme le faisait passlib,

@@ -8,7 +8,8 @@ Chroma (source de vérité unique), pas sur un répertoire séparé.
 import re
 from rank_bm25 import BM25Okapi
 from loguru import logger
-from processing.indexer import DOMAINS, get_collection
+from processing.indexer import get_collection
+from core.domains import DOMAINS
 
 
 def tokenize(text: str) -> list[str]:

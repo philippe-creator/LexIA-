@@ -4,7 +4,7 @@ from typing import Callable
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from api.core.config import settings
+from core.config import settings
 
 _rate_store: dict[str, list[float]] = defaultdict(list)
 

@@ -2,11 +2,12 @@ import json, os
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from api.core.database import get_db, User
+from core.database import get_db, User
 from api.core.dependencies import CurrentUser, require_role
 from api.schemas.chat import SearchRequest, SearchResponse, SearchResult, WatchStatus, CorpusStats
 from retrieval.hybrid_retriever import retrieve
-from processing.indexer import get_corpus_stats, DOMAINS
+from processing.indexer import get_corpus_stats
+from core.domains import DOMAINS
 
 search_router = APIRouter(prefix="/search", tags=["Recherche"])
 watch_router = APIRouter(prefix="/watch", tags=["Veille"])

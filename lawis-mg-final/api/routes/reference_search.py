@@ -4,7 +4,7 @@ from api.core.dependencies import CurrentUser
 from api.schemas.chat import ReferenceRequest, safe_url
 from retrieval.keyword_search import keyword_search
 from retrieval.vector_search import vector_search
-from processing.indexer import DOMAINS
+from core.domains import DOMAINS
 
 router = APIRouter(prefix="/reference", tags=["Référence"])
 PATTERNS = [r"(?i)loi\s+(?:n°?\s*)?\d+[-./]\d+",r"(?i)dahir\s+(?:n°?\s*)?\d+[-./]\d+[-./]\d+",r"(?i)article\s+\d+",r"(?i)(?:CGI|Code\s+Général\s+des\s+Impôts)\s*\d{4}",r"(?i)(?:code\s+du\s+travail|loi\s+65-99)",r"(?i)(?:loi\s+de\s+finances)\s*\d{4}",r"(?i)note\s+circulaire\s+(?:n°?\s*)?\d+"]

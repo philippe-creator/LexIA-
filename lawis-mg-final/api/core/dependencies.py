@@ -2,8 +2,8 @@ from typing import Annotated, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from api.core.database import get_db, User
-from api.core.security import decode_access_token
+from core.database import get_db, User
+from core.security import decode_access_token
 
 security = HTTPBearer(auto_error=False)
 

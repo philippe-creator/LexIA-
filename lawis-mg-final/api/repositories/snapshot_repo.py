@@ -1,7 +1,7 @@
 import hashlib
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
-from api.core.database import DocumentSnapshot
+from core.database import DocumentSnapshot
 
 
 def save_snapshot(db: Session, domain: str, filename: str, source: str, full_text: str) -> DocumentSnapshot | None:

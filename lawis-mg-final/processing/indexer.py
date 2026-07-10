@@ -10,23 +10,14 @@ from chromadb.config import Settings
 
 from processing.chunker import chunk_document, Chunk
 from processing.embedder import embed_documents
+from core.domains import DOMAINS, validate_domain
 
 VECTOR_STORE_DIR = Path(os.getenv("CHROMA_PERSIST_DIR", "./data/vector_stores"))
-
-DOMAINS = ["travail", "societes", "fiscal", "donnees_personnelles", "jurisprudence", "divers"]
-
-
-def validate_domain(domain: str) -> str:
-    """Lève ValueError si le domaine n'est pas dans la liste blanche DOMAINS."""
-    if domain not in DOMAINS:
-        raise ValueError(f"Domaine invalide : {domain}")
-    return domain
 
 
 def get_collection(domain: str) -> chromadb.Collection:
     """Retourne (ou crée) la collection Chroma pour un domaine donné."""
-    if domain not in DOMAINS:
-        raise ValueError(f"Domaine invalide : {domain}")
+    validate_domain(domain)
     client = chromadb.PersistentClient(
         path=str(VECTOR_STORE_DIR / domain),
         settings=Settings(anonymized_telemetry=False),
@@ -87,7 +78,7 @@ def index_document(text: str, domain: str, metadata: dict = None) -> int:
 
     # Snapshot du texte intégral (hors chunks) pour la comparaison de versions (BF-17).
     try:
-        from api.core.database import SessionLocal
+        from core.database import SessionLocal
         from api.repositories.snapshot_repo import save_snapshot
         db = SessionLocal()
         try:

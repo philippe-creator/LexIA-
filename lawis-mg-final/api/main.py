@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from loguru import logger
-from api.core.config import settings
-from api.core.database import init_db
+from core.config import settings
+from core.database import init_db
 from api.middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
 from api.routes.auth import router as auth_router
 from api.routes.chat import router as chat_router

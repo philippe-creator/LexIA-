@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
-from api.core.database import Conversation, Message
+from core.database import Conversation, Message
 
 class ConversationRepository:
     def __init__(self, db: Session): self.db = db

@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text, create_engine, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
-from api.core.config import settings
+from core.config import settings
 
 engine = create_engine(settings.DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}, echo=settings.DEBUG)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

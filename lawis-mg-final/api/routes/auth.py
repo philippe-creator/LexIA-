@@ -2,10 +2,10 @@ from datetime import timedelta
 from typing import Optional
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
-from api.core.config import settings
-from api.core.database import get_db
+from core.config import settings
+from core.database import get_db
 from api.core.dependencies import CurrentUser
-from api.core.security import create_access_token
+from core.security import create_access_token
 from api.repositories.user_repo import UserRepository
 from api.schemas.auth import ChangePasswordRequest, LoginRequest, RegisterRequest, TokenResponse, UpdateProfileRequest
 

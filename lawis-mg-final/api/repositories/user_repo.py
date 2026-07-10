@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
-from api.core.database import User, RefreshToken, AuditLog
-from api.core.security import hash_password, verify_password, validate_password_strength, create_refresh_token, hash_refresh_token, refresh_token_expires_at
+from core.database import User, RefreshToken, AuditLog
+from core.security import hash_password, verify_password, validate_password_strength, create_refresh_token, hash_refresh_token, refresh_token_expires_at
 
 class UserRepository:
     def __init__(self, db: Session): self.db = db

@@ -14,7 +14,7 @@ import json
 from collections.abc import Iterator
 import requests
 from loguru import logger
-from api.core.config import settings
+from core.config import settings
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"

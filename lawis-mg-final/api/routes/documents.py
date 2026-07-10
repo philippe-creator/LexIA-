@@ -2,10 +2,10 @@ import hashlib, uuid
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-from api.core.config import settings
-from api.core.database import get_db, UserDocument
+from core.config import settings
+from core.database import get_db, UserDocument
 from api.core.dependencies import CurrentUser
-from processing.indexer import DOMAINS
+from core.domains import DOMAINS
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)

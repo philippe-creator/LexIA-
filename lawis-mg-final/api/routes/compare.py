@@ -1,11 +1,11 @@
 import difflib
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from api.core.database import get_db
+from core.database import get_db
 from api.core.dependencies import CurrentUser
 from api.schemas.chat import CompareRequest, SnapshotInfo
 from api.repositories.snapshot_repo import list_snapshots, get_snapshot
-from processing.indexer import DOMAINS
+from core.domains import DOMAINS
 
 router = APIRouter(prefix="/compare", tags=["Comparaison"])
 

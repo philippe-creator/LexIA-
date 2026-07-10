@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from loguru import logger
-from api.core.config import settings
+from core.config import settings
 from retrieval.query_expander import expand_query
 from retrieval.vector_search import multi_domain_vector_search
 from retrieval.keyword_search import keyword_search
