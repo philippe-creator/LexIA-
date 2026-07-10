@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+data/raw/
+data/processed/
+data/uploads/
+data/vector_stores/
+data/*.db
+logs/
+frontend/node_modules/
+frontend/build/
+.DS_Store
+.vscode/
+.idea/
+test_lexia.db

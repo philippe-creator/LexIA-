@@ -1,0 +1,129 @@
+"""
+Module OCR — extraction de texte depuis PDFs images (Bulletin Officiel)
+Stratégie : tente d'abord l'extraction texte natif (PyMuPDF),
+            si le PDF est en mode image → fallback OCR (Tesseract)
+"""
+import os
+from pathlib import Path
+from loguru import logger
+
+import fitz          # PyMuPDF — extraction texte natif
+import pytesseract
+from pdf2image import convert_from_path
+from PIL import Image
+
+# Langues OCR : français + arabe (le BO marocain est bilingue)
+OCR_LANGS = "fra+ara"
+NATIVE_TEXT_THRESHOLD = 50  # nb de caractères minimum pour considérer un PDF "texte natif"
+MAX_PDF_PAGES = 500  # garde-fou contre les PDF adversariaux (déni de service via OCR)
+
+
+def extract_text_native(pdf_path: Path) -> str:
+    """Extraction texte natif avec PyMuPDF (rapide, pas d'OCR)."""
+    text_pages = []
+    try:
+        doc = fitz.open(str(pdf_path))
+        for page in doc:
+            text_pages.append(page.get_text())
+        doc.close()
+    except Exception as e:
+        logger.warning(f"PyMuPDF impossible sur {pdf_path.name} : {e}")
+    return "\n".join(text_pages)
+
+
+def extract_text_ocr(pdf_path: Path) -> str:
+    """OCR sur chaque page du PDF (pour PDFs images / fac-similés scannés)."""
+    text_pages = []
+    try:
+        images = convert_from_path(str(pdf_path), dpi=300)
+        for i, image in enumerate(images):
+            logger.debug(f"OCR page {i+1}/{len(images)} : {pdf_path.name}")
+            text = pytesseract.image_to_string(image, lang=OCR_LANGS)
+            text_pages.append(text)
+    except Exception as e:
+        logger.error(f"OCR impossible sur {pdf_path.name} : {e}")
+    return "\n".join(text_pages)
+
+
+def extract_text(pdf_path: Path) -> dict:
+    """
+    Point d'entrée principal.
+    Tente l'extraction native, bascule sur OCR si le texte est insuffisant.
+    Retourne un dict avec le texte et les métadonnées d'extraction.
+    """
+    pdf_path = Path(pdf_path)
+    if not pdf_path.exists():
+        logger.error(f"Fichier introuvable : {pdf_path}")
+        return {"text": "", "method": "error", "path": str(pdf_path)}
+
+    try:
+        with fitz.open(str(pdf_path)) as doc:
+            page_count = doc.page_count
+    except Exception as e:
+        logger.error(f"PDF illisible {pdf_path.name} : {e}")
+        return {"text": "", "method": "error", "path": str(pdf_path)}
+    if page_count > MAX_PDF_PAGES:
+        logger.warning(f"PDF rejeté ({page_count} pages > {MAX_PDF_PAGES}) : {pdf_path.name}")
+        return {"text": "", "method": "rejected_too_many_pages", "path": str(pdf_path)}
+
+    # Tentative extraction native
+    native_text = extract_text_native(pdf_path)
+    clean_native = native_text.replace("\n", " ").strip()
+
+    if len(clean_native) >= NATIVE_TEXT_THRESHOLD:
+        logger.info(f"Texte natif extrait : {pdf_path.name} ({len(clean_native)} chars)")
+        return {
+            "text": native_text,
+            "method": "native",
+            "path": str(pdf_path),
+            "char_count": len(clean_native),
+        }
+
+    # Fallback OCR
+    logger.info(f"PDF image détecté, OCR en cours : {pdf_path.name}")
+    ocr_text = extract_text_ocr(pdf_path)
+    return {
+        "text": ocr_text,
+        "method": "ocr",
+        "path": str(pdf_path),
+        "char_count": len(ocr_text.replace("\n", " ").strip()),
+    }
+
+
+def batch_extract(pdf_dir: Path, output_dir: Path) -> list[dict]:
+    """
+    Extrait le texte de tous les PDFs d'un répertoire.
+    Sauvegarde les textes en .txt dans output_dir.
+    """
+    pdf_dir = Path(pdf_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    results = []
+    pdf_files = list(pdf_dir.rglob("*.pdf"))
+    logger.info(f"Extraction batch : {len(pdf_files)} PDFs dans {pdf_dir}")
+
+    for pdf_path in pdf_files:
+        txt_path = output_dir / (pdf_path.stem + ".txt")
+        if txt_path.exists():
+            logger.debug(f"Déjà extrait : {txt_path.name}")
+            continue
+
+        result = extract_text(pdf_path)
+        if result["text"].strip():
+            txt_path.write_text(result["text"], encoding="utf-8")
+            logger.info(f"Sauvegardé : {txt_path.name} (méthode: {result['method']})")
+        else:
+            logger.warning(f"Texte vide pour : {pdf_path.name}")
+
+        results.append({**result, "txt_path": str(txt_path)})
+
+    return results
+
+
+if __name__ == "__main__":
+    # Test rapide sur le corpus CNDP (le plus compact)
+    batch_extract(
+        pdf_dir=Path("./data/raw/donnees_personnelles"),
+        output_dir=Path("./data/processed/donnees_personnelles"),
+    )
