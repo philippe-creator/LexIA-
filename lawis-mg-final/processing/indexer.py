@@ -75,19 +75,6 @@ def index_document(text: str, domain: str, metadata: dict = None) -> int:
     logger.info(f"Indexé : {len(chunks)} chunks dans le corpus '{domain}'")
     from retrieval.keyword_search import invalidate_bm25_cache
     invalidate_bm25_cache(domain)
-
-    # Snapshot du texte intégral (hors chunks) pour la comparaison de versions (BF-17).
-    try:
-        from core.database import SessionLocal
-        from api.repositories.snapshot_repo import save_snapshot
-        db = SessionLocal()
-        try:
-            save_snapshot(db, domain=domain, filename=metadata.get("filename", "document"), source=metadata.get("source"), full_text=text)
-        finally:
-            db.close()
-    except Exception as e:
-        logger.warning(f"Snapshot non enregistré pour '{metadata.get('filename')}' : {e}")
-
     return len(chunks)
 
 

@@ -30,3 +30,5 @@ tenacity==8.5.0
 apscheduler==3.10.4
 loguru==0.7.2
 tqdm==4.66.5
+pytest==8.3.3
+pytest-asyncio==0.24.0

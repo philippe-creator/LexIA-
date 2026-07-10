@@ -107,33 +107,24 @@ def run_watch_cycle() -> dict:
 
 
 def _trigger_indexation(new_docs: list[dict]):
-    """Déclenche le pipeline d'extraction et d'indexation pour les nouveaux docs."""
-    from ingestion.ocr.pdf_extractor import extract_text
-    from processing.indexer import index_document
+    """Déclenche le pipeline d'ingestion pour les nouveaux documents détectés."""
+    from ingestion.pipeline import ingest_pdf, ingest_text
     from pathlib import Path
 
     for doc in new_docs:
         path = Path(doc.get("local_path", ""))
         if not path.exists():
             continue
+        domain = doc.get("domain", "divers")
+        source = doc.get("source")
         try:
             if path.suffix.lower() == ".pdf":
-                result = extract_text(path)
-                text = result["text"]
+                result = ingest_pdf(path, domain=domain, source=source, extra_metadata={"url": doc.get("url")})
             else:
                 text = path.read_text(encoding="utf-8", errors="ignore")
-
-            if text.strip():
-                index_document(
-                    text=text,
-                    domain=doc.get("domain", "divers"),
-                    metadata={
-                        "source": doc.get("source"),
-                        "url": doc.get("url"),
-                        "filename": path.name,
-                    }
-                )
-                logger.info(f"Indexé : {path.name}")
+                result = ingest_text(text, domain=domain, filename=path.name, source=source, extra_metadata={"url": doc.get("url")})
+            if result["chunks_indexed"]:
+                logger.info(f"Indexé : {path.name} ({result['chunks_indexed']} chunks)")
         except Exception as e:
             logger.error(f"Erreur indexation {path.name} : {e}")
 

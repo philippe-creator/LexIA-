@@ -1,43 +1,12 @@
 """
 Classifier — attribue un texte à un domaine juridique.
-Approche légère : règles par mots-clés + score de confiance.
-Peut être remplacé par un classifieur ML si besoin.
+Approche légère : comptage de mots-clés (source unique : core.domains) avec
+correspondance à limite de mot, + score de confiance.
 """
 import re
 from dataclasses import dataclass
-
-DOMAIN_KEYWORDS = {
-    "travail": [
-        "code du travail", "contrat de travail", "salarié", "employeur",
-        "licenciement", "démission", "congé", "salaire", "SMIG", "SMAG",
-        "syndicat", "grève", "CNSS", "sécurité sociale", "cotisation",
-        "convention collective", "inspection du travail", "période d'essai",
-        "indemnité de licenciement", "heures supplémentaires", "loi 65-99",
-    ],
-    "fiscal": [
-        "code général des impôts", "CGI", "impôt sur les sociétés", "IS",
-        "impôt sur le revenu", "IR", "TVA", "taxe sur la valeur ajoutée",
-        "loi de finances", "direction générale des impôts", "DGI",
-        "déclaration fiscale", "cotisation minimale", "note circulaire",
-        "contribuable", "assiette fiscale", "exonération", "déduction",
-        "redressement fiscal", "contrôle fiscal",
-    ],
-    "societes": [
-        "société anonyme", "SA", "SARL", "société à responsabilité limitée",
-        "SNC", "société en nom collectif", "capital social", "associé",
-        "actionnaire", "assemblée générale", "conseil d'administration",
-        "gérant", "commissaire aux comptes", "OMPIC", "registre de commerce",
-        "loi 17-95", "loi 5-96", "fusion", "dissolution", "liquidation",
-        "statuts", "objet social",
-    ],
-    "donnees_personnelles": [
-        "données personnelles", "protection des données", "loi 09-08",
-        "CNDP", "Commission Nationale", "traitement de données",
-        "responsable du traitement", "consentement", "droit d'accès",
-        "droit de rectification", "transfert de données", "vie privée",
-        "données sensibles", "finalité du traitement", "déclaration CNDP",
-    ],
-}
+from functools import lru_cache
+from core.domains import DOMAIN_KEYWORDS
 
 
 @dataclass
@@ -47,17 +16,26 @@ class ClassificationResult:
     scores: dict            # score brut par domaine
 
 
+@lru_cache(maxsize=1)
+def _compiled_patterns() -> dict[str, list[re.Pattern]]:
+    """
+    Compile une regex à limite de mot (\\b) par mot-clé, une seule fois.
+    Sans cette limite de mot, un mot-clé court comme "IS" ou "IR" matche par
+    simple sous-chaîne à l'intérieur de mots français courants (ex. "préavis"
+    contient "is", "secrétaire" contient "ir") et provoque un mauvais routage.
+    """
+    return {
+        domain: [re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE) for kw in keywords]
+        for domain, keywords in DOMAIN_KEYWORDS.items()
+    }
+
+
 def classify(text: str) -> ClassificationResult:
     """
     Classe un texte dans un domaine juridique.
     Retourne le domaine avec le score le plus élevé.
     """
-    text_lower = text.lower()
-    scores = {}
-
-    for domain, keywords in DOMAIN_KEYWORDS.items():
-        count = sum(1 for kw in keywords if kw.lower() in text_lower)
-        scores[domain] = count
+    scores = {domain: sum(1 for p in patterns if p.search(text)) for domain, patterns in _compiled_patterns().items()}
 
     total = sum(scores.values())
     if total == 0:
@@ -83,6 +61,7 @@ if __name__ == "__main__":
         "La TVA est fixée à 20% pour les prestations de services selon le CGI.",
         "La société anonyme doit disposer d'un capital minimum de 300 000 dirhams.",
         "Le responsable du traitement doit déclarer les traitements de données personnelles à la CNDP.",
+        "Quel est le délai de préavis légal en cas de démission d'une secrétaire ?",  # ex-piège IS/IR
     ]
     for t in tests:
         r = classify(t)

@@ -63,7 +63,7 @@ async def upload(file: UploadFile = File(...), domain: str = Form("divers"), cur
 
 async def _index(doc, db):
     from ingestion.ocr.pdf_extractor import extract_text
-    from processing.indexer import index_document
+    from ingestion.pipeline import ingest_text
     from datetime import datetime
     doc.status="processing"; db.commit()
     p = Path(doc.file_path)
@@ -74,8 +74,11 @@ async def _index(doc, db):
             import docx; text="\n".join(para.text for para in docx.Document(str(p)).paragraphs)
         except: text=""
     if not text or len(text.strip())<50: raise ValueError("Texte extrait vide.")
-    n = index_document(text=text, domain=doc.domain, metadata={"source":"user_upload","user_id":doc.user_id,"document_id":doc.id,"filename":doc.original_filename,"domain":doc.domain})
-    doc.status="indexed"; doc.chunk_count=n; doc.indexed_at=datetime.utcnow(); db.commit()
+    # source="user_upload" : le pipeline exclut délibérément ces documents du
+    # snapshot de version partagé (voir ingestion/pipeline.py) pour ne pas
+    # exposer un upload privé via /compare à d'autres utilisateurs.
+    result = ingest_text(text, domain=doc.domain, filename=doc.original_filename, source="user_upload", extra_metadata={"user_id":doc.user_id,"document_id":doc.id})
+    doc.status="indexed"; doc.chunk_count=result["chunks_indexed"]; doc.indexed_at=datetime.utcnow(); db.commit()
 
 @router.get("/")
 async def list_docs(current_user: CurrentUser, db: Session = Depends(get_db)):

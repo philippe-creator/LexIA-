@@ -36,7 +36,11 @@ def split_by_articles(text: str) -> list[str]:
     Retourne une liste de chaînes (une par article/section).
     """
     combined_pattern = "|".join(ARTICLE_PATTERNS)
-    parts = re.split(f"({combined_pattern})", text, flags=re.MULTILINE)
+    # re.IGNORECASE est indispensable ici : les textes juridiques marocains
+    # écrivent presque toujours "Article N" (majuscule), alors que les motifs
+    # ci-dessus sont en minuscules — sans ce flag, le split ne matche jamais
+    # et le découpage retombe silencieusement sur le fallback par taille.
+    parts = re.split(f"({combined_pattern})", text, flags=re.MULTILINE | re.IGNORECASE)
 
     if len(parts) <= 1:
         return []  # Pas de structure d'articles détectée
