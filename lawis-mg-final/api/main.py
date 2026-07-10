@@ -14,6 +14,7 @@ from api.routes.search_watch import search_router, watch_router
 from api.routes.compare import router as compare_router
 from api.routes.reference_search import router as reference_router
 from api.routes.documents import router as documents_router
+from api.routes.calculators import router as calculators_router
 
 def _active_llm_key() -> str:
     return {"openai": settings.OPENAI_API_KEY, "gemini": settings.GEMINI_API_KEY, "openrouter": settings.OPENROUTER_API_KEY}.get(settings.LLM_PROVIDER.lower(), "")
@@ -60,6 +61,7 @@ app.include_router(watch_router)
 app.include_router(compare_router)
 app.include_router(reference_router)
 app.include_router(documents_router)
+app.include_router(calculators_router)
 
 @app.get("/", tags=["Health"])
 async def root(): return {"service":"LexIA Maroc","version":settings.APP_VERSION,"status":"running","docs":"/docs"}
