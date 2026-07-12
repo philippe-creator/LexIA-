@@ -51,12 +51,16 @@ def ingest_text(text: str, domain: str, filename: str, source: str = None, extra
     return {"chunks_indexed": n_chunks, "snapshot_saved": snapshot_saved}
 
 
-def ingest_pdf(pdf_path: Path, domain: str, source: str = None, extra_metadata: dict = None) -> dict:
-    """Extrait le texte d'un PDF (natif ou OCR) puis l'ingère."""
+def ingest_pdf(pdf_path: Path, domain: str, source: str = None, extra_metadata: dict = None, filename: str = None) -> dict:
+    """Extrait le texte d'un PDF (natif ou OCR) puis l'ingère.
+
+    `filename` permet de fournir un nom d'affichage (ex. nom URL-décodé) distinct
+    du nom de fichier sur disque, utilisé dans les citations et /compare.
+    """
     from ingestion.ocr.pdf_extractor import extract_text
     pdf_path = Path(pdf_path)
     result = extract_text(pdf_path)
     return ingest_text(
-        result["text"], domain=domain, filename=pdf_path.name, source=source,
+        result["text"], domain=domain, filename=filename or pdf_path.name, source=source,
         extra_metadata={**(extra_metadata or {}), "extraction_method": result.get("method")},
     )

@@ -55,7 +55,7 @@ def backfill_domain(domain: str) -> dict:
         logger.info(f"[{domain}] Ingestion : {display_name}")
         try:
             if f.suffix.lower() == ".pdf":
-                res = ingest_pdf(f, domain=domain, source="backfill", extra_metadata={"filename": display_name})
+                res = ingest_pdf(f, domain=domain, source="backfill", filename=display_name)
             else:
                 text = f.read_text(encoding="utf-8", errors="ignore")
                 res = ingest_text(text, domain=domain, filename=display_name, source="backfill")
