@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Scale, MessageSquare, BarChart2, GitCompare, Hash, Upload, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { Scale, MessageSquare, BarChart2, GitCompare, Hash, Upload, Calculator, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 
 const NAV = [
   { to: "/", icon: MessageSquare, label: "Assistant juridique", end: true },
   { to: "/reference", icon: Hash, label: "Recherche par référence" },
   { to: "/compare", icon: GitCompare, label: "Comparer des versions" },
+  { to: "/calculators", icon: Calculator, label: "Calculateurs" },
   { to: "/documents", icon: Upload, label: "Mes documents" },
   { to: "/dashboard", icon: BarChart2, label: "Tableau de bord" },
 ];

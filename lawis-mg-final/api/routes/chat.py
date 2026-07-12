@@ -9,6 +9,7 @@ from api.core.dependencies import CurrentUser
 from api.repositories.conversation_repo import ConversationRepository
 from api.schemas.chat import ChatRequest, ChatResponse, Citation
 from retrieval.hybrid_retriever import retrieve
+from retrieval.reranker import confidence_label_for_score
 from core.domains import DOMAINS
 from generation.llm_client import generate, generate_stream
 from generation.prompt_builder import build_prompt, format_citations, extract_suggested_queries
@@ -134,7 +135,9 @@ async def list_conversations(current_user: CurrentUser, limit: int = 20, db: Ses
 async def get_conversation(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
     conv = ConversationRepository(db).get(conv_id, current_user.id)
     if not conv: raise HTTPException(404, "Conversation introuvable.")
-    return {"id":conv.id,"title":conv.title,"domain":conv.domain,"created_at":conv.created_at.isoformat(),"messages":[{"id":m.id,"role":m.role,"content":m.content,"citations":m.citations or [],"confidence_score":m.confidence_score,"created_at":m.created_at.isoformat()} for m in conv.messages]}
+    # confidence_label n'est pas persisté (seul le score l'est) — on le redérive
+    # du score enregistré, avec les mêmes seuils que la génération live.
+    return {"id":conv.id,"title":conv.title,"domain":conv.domain,"created_at":conv.created_at.isoformat(),"messages":[{"id":m.id,"role":m.role,"content":m.content,"citations":m.citations or [],"confidence_score":m.confidence_score,"confidence_label":confidence_label_for_score(m.confidence_score) if m.confidence_score is not None else None,"created_at":m.created_at.isoformat()} for m in conv.messages]}
 
 @router.delete("/conversations/{conv_id}")
 async def delete_conversation(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):

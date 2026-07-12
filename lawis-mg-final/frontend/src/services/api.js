@@ -129,6 +129,12 @@ export const compareService = {
   compare: (d) => api.post("/compare/", d),
 };
 
+export const calculatorService = {
+  severancePay: (d) => api.post("/calculators/severance-pay", d),
+  noticePeriod: (d) => api.post("/calculators/notice-period", d),
+  netSalary: (d) => api.post("/calculators/net-salary", d),
+};
+
 export const documentService = {
   list: () => api.get("/documents/"),
   upload: (fd) => api.post("/documents/upload", fd, { headers: { "Content-Type": "multipart/form-data" } }),

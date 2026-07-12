@@ -172,6 +172,17 @@ code { font-family: var(--font-mono); background: var(--bg); padding: 2px 6px; b
 .status-badge.stable { background: var(--bg); color: var(--text-muted); }
 .btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: var(--navy); color: #fff; border-radius: 7px; font-size: 13.5px; font-weight: 500; transition: background .15s; }
 .btn-primary:hover:not(:disabled) { background: var(--blue); }
+
+.calc-tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.calc-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+.calc-fields { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.calc-fields input.select-input { min-width: 160px; }
+.calc-error { color: #DC2626; padding: 10px; background: #FEF2F2; border-radius: 7px; margin-bottom: 12px; font-size: 13px; }
+.calc-result { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 4px; }
+.calc-amount { font-size: 28px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+.calc-detail { color: var(--text-muted); font-size: 13px; margin-bottom: 8px; }
+.calc-breakdown { max-width: 480px; }
+.calc-reference { color: var(--text-muted); font-size: 12px; margin-top: 12px; font-style: italic; }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-secondary { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-secondary); border-radius: 7px; font-size: 13px; font-weight: 500; transition: all .15s; }
 .btn-secondary:hover:not(:disabled) { border-color: var(--navy); color: var(--navy); }

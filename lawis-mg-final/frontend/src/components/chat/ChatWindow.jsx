@@ -83,7 +83,7 @@ function MessageBubble({ msg, onCitationClick, onSuggestionClick }) {
         {!msg.streaming && <div className="msg-meta">
           {msg.confidence_label && (
             <div className="confidence-badge" style={{background:cfg.bg,color:cfg.color}}>
-              <Icon size={12}/> <span>{cfg.label} ({Math.round((msg.confidence_score||0)*100)}%)</span>
+              <Icon size={12}/> <span>{cfg.label}</span>
             </div>
           )}
           {msg.citations?.length > 0 && (

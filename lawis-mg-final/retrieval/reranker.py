@@ -44,6 +44,18 @@ def rerank(query: str, candidates: list[dict], top_k: int = None) -> list[dict]:
         logger.error(f"Erreur reranking : {e}")
         return sorted(candidates, key=lambda x: x.get("rrf_score", 0), reverse=True)[:top_k]
 
+def confidence_label_for_score(score: float) -> str:
+    """
+    Dérive le label qualitatif à partir d'un score de confiance déjà normalisé
+    en [0,1]. Fonction pure et réutilisable : la génération live calcule le
+    label via compute_confidence(), mais la relecture d'une conversation
+    (GET /chat/conversations/{id}) ne dispose que du score persisté en base
+    (confidence_label n'est pas une colonne) — cette fonction permet de le
+    redériver à l'identique dans les deux cas, sans dupliquer les seuils.
+    """
+    return "élevé" if score >= 0.8 else "moyen" if score >= 0.6 else "faible" if score >= 0.4 else "insuffisant"
+
+
 def compute_confidence(reranked: list[dict]) -> tuple[float, str]:
     if not reranked: return 0.0, "insuffisant"
     top = reranked[0]
@@ -53,5 +65,5 @@ def compute_confidence(reranked: list[dict]) -> tuple[float, str]:
     else:
         # Fallback sans cross-encoder : score RRF brut, non borné — sigmoid pour ramener en [0,1].
         norm = 1 / (1 + math.exp(-top.get("rrf_score", 0)))
-    label = "élevé" if norm >= 0.8 else "moyen" if norm >= 0.6 else "faible" if norm >= 0.4 else "insuffisant"
-    return round(norm, 3), label
+    norm = round(norm, 3)
+    return norm, confidence_label_for_score(norm)
