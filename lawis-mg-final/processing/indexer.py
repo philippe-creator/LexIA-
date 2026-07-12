@@ -52,11 +52,19 @@ def index_document(text: str, domain: str, metadata: dict = None) -> int:
     # Indexation dans Chroma
     collection = get_collection(domain)
 
-    # Générer des IDs uniques basés sur le contenu
+    # Générer des IDs uniques et stables. On combine le nom de fichier, l'index
+    # du chunk et le texte INTÉGRAL (pas seulement les 100 premiers caractères) :
+    # dans un texte juridique découpé par article, plusieurs articles partagent
+    # souvent le même début ("Article X — Les dispositions…"), ce qui provoquait
+    # des collisions d'IDs (upsert rejeté). L'index garantit l'unicité même entre
+    # deux chunks byte-identiques ; le contenu complet garde l'idempotence lors
+    # d'une ré-indexation du même document.
     import hashlib
     ids = [
-        hashlib.sha256((metadata.get("filename", "") + c.text[:100]).encode()).hexdigest()[:32]
-        for c in chunks
+        hashlib.sha256(
+            f"{metadata.get('filename', '')}::{c.metadata.get('chunk_idx', i)}::{c.text}".encode()
+        ).hexdigest()[:32]
+        for i, c in enumerate(chunks)
     ]
 
     metadatas = [
