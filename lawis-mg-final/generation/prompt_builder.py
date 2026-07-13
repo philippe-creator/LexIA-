@@ -11,28 +11,42 @@ ROLE_INSTRUCTIONS = {
 }
 
 BASE_RULES = """
-RÈGLES STRICTES :
-1. Réponds UNIQUEMENT sur la base des textes juridiques fournis.
-2. Cite TOUJOURS la source exacte [SOURCE X] dans ta réponse.
-3. Si les textes ne permettent pas de répondre, dis-le explicitement.
-4. Ne génère AUCUNE information absente des sources.
-5. Réponds en français sauf si la question est en arabe.
-6. Fin de réponse : propose 2-3 questions de suivi au format "QUESTIONS SUGGÉRÉES: [Q1] | [Q2] | [Q3]"
+RÈGLES :
+1. Fonde ta réponse UNIQUEMENT sur les textes juridiques fournis ci-dessous. N'invente et n'extrapole jamais un fait juridique absent des sources.
+2. Cite tes sources par leur nom réel, entre guillemets français, directement dans la phrase (ex. « Loi 65-99, art. 52 » indique que...). N'utilise JAMAIS "SOURCE 1", "SOURCE X" ou un numéro brut — l'utilisateur doit pouvoir suivre la phrase sans légende externe.
+3. Si les textes fournis ne répondent pas à la question, ou n'y répondent que partiellement :
+   - Dis-le clairement, sans détour.
+   - Précise ce que les textes fournis couvrent réellement, pour que l'utilisateur comprenne le périmètre de ce que tu as pu vérifier.
+   - Si la question est large ou ambiguë, propose 1 à 2 reformulations plus précises qui permettraient une réponse exploitable.
+   - Ne laisse JAMAIS la réponse en impasse : oriente toujours vers une suite possible (reformulation, domaine à préciser, ou consultation d'un professionnel/portail officiel si la question sort du champ couvert par les sources).
+4. Réponds en français sauf si la question est posée en arabe.
+5. Termine TOUJOURS par 2 à 3 questions de suivi pertinentes, au format : "QUESTIONS SUGGÉRÉES: [Q1] | [Q2] | [Q3]"
 """
+
+def _clean_source_name(filename: str) -> str:
+    """Nom de source lisible à partir du nom de fichier — évite d'exposer un
+    numéro de source opaque ("SOURCE 1") que l'utilisateur ne peut pas relier
+    au document réel sans revenir chercher la légende."""
+    if not filename or filename == "N/A":
+        return "document juridique"
+    name = re.sub(r"\.(pdf|docx?|txt|html?)$", "", filename, flags=re.IGNORECASE)
+    name = re.sub(r"[_\-]+", " ", name).strip()
+    return name or filename
 
 def build_prompt(query: str, retrieved_chunks: list[dict], user_role: str = "particulier", conversation_history: list[dict] = None) -> tuple[str, str]:
     system = ROLE_INSTRUCTIONS.get(user_role, ROLE_INSTRUCTIONS["particulier"]) + BASE_RULES
     context_parts = []
-    for i, c in enumerate(retrieved_chunks):
+    for c in retrieved_chunks:
         meta = c.get("metadata", {})
-        label = " | ".join(filter(None, [meta.get("filename"), f"via {meta.get('source','').upper()}" if meta.get("source") else None, f"[{meta.get('domain','')}]" if meta.get("domain") else None]))
-        context_parts.append(f"[SOURCE {i+1}] {label}\n{c['text']}")
+        source_name = _clean_source_name(meta.get("filename"))
+        domain_tag = f" [{meta.get('domain')}]" if meta.get("domain") else ""
+        context_parts.append(f"« {source_name} »{domain_tag}\n{c['text']}")
     context = "\n\n---\n\n".join(context_parts)
     history_section = ""
     if conversation_history:
         lines = [f"{'Utilisateur' if m['role']=='user' else 'Assistant'}: {m['content'][:200]}" for m in conversation_history[-6:]]
         history_section = "CONTEXTE PRÉCÉDENT :\n" + "\n".join(lines) + "\n\n---\n\n"
-    user_msg = f"{history_section}TEXTES JURIDIQUES :\n\n{context}\n\n---\n\nQUESTION : {query}\n\nCite [SOURCE X] pour chaque information utilisée."
+    user_msg = f"{history_section}TEXTES JURIDIQUES :\n\n{context}\n\n---\n\nQUESTION : {query}\n\nCite le nom réel de chaque source utilisée, directement dans la phrase (jamais un numéro)."
     return system, user_msg
 
 def format_citations(chunks: list[dict]) -> list[dict]:

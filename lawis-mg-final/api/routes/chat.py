@@ -21,7 +21,11 @@ router = APIRouter(prefix="/chat", tags=["Chatbot"])
 # peut retarder la fermeture de la connexion — ce qui laisserait le client bloqué
 # en attente de la fin du flux.
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive", "Content-Encoding": "identity"}
-_NO_CONTEXT_ANSWER = "Aucun texte juridique pertinent trouvé dans les corpus disponibles. Consultez directement www.sgg.gov.ma, www.tax.gov.ma ou www.cndp.ma."
+_NO_CONTEXT_ANSWER = (
+    "Aucun texte juridique pertinent n'a été trouvé dans les corpus disponibles pour cette question. "
+    "Essayez de préciser le domaine concerné (travail, fiscal, sociétés, données personnelles) ou de reformuler "
+    "avec des termes plus spécifiques. Pour une recherche officielle directe : www.sgg.gov.ma, www.tax.gov.ma ou www.cndp.ma."
+)
 
 def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
@@ -39,7 +43,7 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = De
         domains = [request.domain] if request.domain else None
         chunks, conf_score, conf_label, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id)
         if not chunks:
-            answer = "Aucun texte juridique pertinent trouvé dans les corpus disponibles. Consultez directement www.sgg.gov.ma, www.tax.gov.ma ou www.cndp.ma."
+            answer = _NO_CONTEXT_ANSWER
             msg = repo.add_message(conv.id, "assistant", answer, citations=[], domains_searched=domains_searched, confidence_score=0.0)
             return ChatResponse(answer=answer, citations=[], domains_searched=domains_searched, query=request.query, conversation_id=conv.id, message_id=msg.id, confidence_score=0.0, confidence_label="insuffisant")
         role = current_user.role if request.adapt_to_profile else "particulier"
