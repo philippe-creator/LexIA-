@@ -17,10 +17,10 @@ from api.routes.documents import router as documents_router
 from api.routes.calculators import router as calculators_router
 
 def _active_llm_key() -> str:
-    return {"openai": settings.OPENAI_API_KEY, "gemini": settings.GEMINI_API_KEY, "openrouter": settings.OPENROUTER_API_KEY}.get(settings.LLM_PROVIDER.lower(), "")
+    return {"openai": settings.OPENAI_API_KEY, "gemini": settings.GEMINI_API_KEY, "openrouter": settings.OPENROUTER_API_KEY, "groq": settings.GROQ_API_KEY}.get(settings.LLM_PROVIDER.lower(), "")
 
 def _active_llm_model() -> str:
-    return {"openai": settings.OPENAI_MODEL, "gemini": settings.GEMINI_MODEL, "openrouter": settings.OPENROUTER_MODEL}.get(settings.LLM_PROVIDER.lower(), "")
+    return {"openai": settings.OPENAI_MODEL, "gemini": settings.GEMINI_MODEL, "openrouter": settings.OPENROUTER_MODEL, "groq": settings.GROQ_MODEL}.get(settings.LLM_PROVIDER.lower(), "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

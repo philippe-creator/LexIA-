@@ -1,4 +1,5 @@
 import math
+import re
 import threading
 from loguru import logger
 from core.config import settings
@@ -6,6 +7,12 @@ from core.config import settings
 _reranker = None
 _reranker_loaded = False
 _reranker_lock = threading.Lock()
+
+_ARTICLE_NUM_RE = re.compile(r"\barticle\s+(\d+)", re.IGNORECASE)
+
+def _article_numbers(text: str) -> set[str]:
+    """Numéros d'article mentionnés dans un texte (ex. 'Article 52' -> {'52'})."""
+    return set(_ARTICLE_NUM_RE.findall(text))
 
 def get_reranker():
     """
@@ -38,7 +45,15 @@ def rerank(query: str, candidates: list[dict], top_k: int = None) -> list[dict]:
         scores = reranker.predict(pairs)
         # Le cross-encoder renvoie des logits bruts (pas bornés [0,1]) — on les
         # normalise via sigmoid pour un score de pertinence affichable en %.
-        for i, c in enumerate(candidates): c["rerank_score"] = 1 / (1 + math.exp(-float(scores[i])))
+        query_articles = _article_numbers(query)
+        for i, c in enumerate(candidates):
+            base = 1 / (1 + math.exp(-float(scores[i])))
+            # Boost si la question cite un article précis ("article 52 ?") et que
+            # ce chunk provient justement de cet article — le cross-encoder seul
+            # ne privilégie pas toujours la correspondance exacte de référence.
+            if query_articles and _article_numbers(c["text"][:200]) & query_articles:
+                base = min(1.0, base * 1.5)
+            c["rerank_score"] = base
         return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)[:top_k]
     except Exception as e:
         logger.error(f"Erreur reranking : {e}")

@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     BCRYPT_ROUNDS: int = 12
     DATABASE_URL: str = "sqlite:///./data/lexia.db"
-    LLM_PROVIDER: str = "openai"  # openai | gemini | openrouter
+    LLM_PROVIDER: str = "openai"  # openai | gemini | openrouter | groq
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODELS: str = ""
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_MODEL: str = "meta-llama/llama-3.3-70b-instruct:free"
     # Modèles de secours (liste séparée par virgules), essayés dans l'ordre si le
@@ -49,6 +52,9 @@ class Settings(BaseSettings):
     @property
     def gemini_models_list(self) -> list[str]:
         return self._model_list(self.GEMINI_MODEL, self.GEMINI_MODELS)
+    @property
+    def groq_models_list(self) -> list[str]:
+        return self._model_list(self.GROQ_MODEL, self.GROQ_MODELS)
     LLM_TEMPERATURE: float = 0.1
     LLM_MAX_TOKENS: int = 2048
     EMBEDDING_MODEL: str = "intfloat/multilingual-e5-large"

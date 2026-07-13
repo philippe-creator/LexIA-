@@ -1,4 +1,4 @@
-"""LLM Client — OpenAI, Gemini ou OpenRouter selon LLM_PROVIDER dans .env.
+"""LLM Client — OpenAI, Gemini, OpenRouter ou Groq selon LLM_PROVIDER dans .env.
 
 Chaque fournisseur peut définir une liste de modèles (MODEL principal + *_MODELS de
 secours). En cas d'erreur récupérable (429/402/timeout/5xx), on bascule
@@ -18,6 +18,7 @@ from core.config import settings
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_URL_TMPL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 # Statuts pour lesquels réessayer avec le modèle suivant a du sens.
@@ -132,10 +133,36 @@ def _generate_openrouter(system_prompt: str, user_message: str, model: str) -> s
         _raise_connection_error(e, "OpenRouter")
 
 
+def _generate_groq(system_prompt: str, user_message: str, model: str) -> str:
+    if not settings.GROQ_API_KEY:
+        raise LLMError("GROQ_API_KEY manquante dans .env", retryable=False)
+    headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": model,
+        "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
+        "temperature": settings.LLM_TEMPERATURE,
+        "max_tokens": settings.LLM_MAX_TOKENS,
+    }
+    logger.info(f"Groq → {model}")
+    try:
+        resp = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        logger.info(f"Réponse reçue ({len(content)} chars)")
+        return content
+    except requests.exceptions.Timeout:
+        raise LLMError("Timeout Groq — réessayez.", retryable=True)
+    except requests.exceptions.HTTPError as e:
+        _raise_http_error(e, "Groq")
+    except requests.exceptions.RequestException as e:
+        _raise_connection_error(e, "Groq")
+
+
 _PROVIDERS = {
     "openai": (_generate_openai, lambda: settings.openai_models_list),
     "gemini": (_generate_gemini, lambda: settings.gemini_models_list),
     "openrouter": (_generate_openrouter, lambda: settings.openrouter_models_list),
+    "groq": (_generate_groq, lambda: settings.groq_models_list),
 }
 
 
@@ -235,10 +262,18 @@ def _stream_gemini(system_prompt: str, user_message: str, model: str) -> Iterato
     yield _generate_gemini(system_prompt, user_message, model)
 
 
+def _stream_groq(system_prompt: str, user_message: str, model: str) -> Iterator[str]:
+    if not settings.GROQ_API_KEY:
+        raise LLMError("GROQ_API_KEY manquante dans .env", retryable=False)
+    headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+    return _stream_openai_compatible(GROQ_URL, headers, model, system_prompt, user_message, "Groq")
+
+
 _STREAM_PROVIDERS = {
     "openai": (_stream_openai, lambda: settings.openai_models_list),
     "gemini": (_stream_gemini, lambda: settings.gemini_models_list),
     "openrouter": (_stream_openrouter, lambda: settings.openrouter_models_list),
+    "groq": (_stream_groq, lambda: settings.groq_models_list),
 }
 
 
