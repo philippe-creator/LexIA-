@@ -44,6 +44,14 @@ def _raise_http_error(e: requests.exceptions.HTTPError, provider: str):
     raise LLMError(f"Erreur {provider} {status} : {body[:300]}", retryable=status in RETRYABLE_STATUS)
 
 
+def _raise_connection_error(e: requests.exceptions.RequestException, provider: str):
+    """DNS/coupure réseau/connexion refusée — classé récupérable : le modèle
+    suivant de la cascade a une vraie chance de passer si l'incident n'affecte
+    pas tout le réseau (ex. bascule OpenRouter → OpenAI), et à défaut c'est
+    un incident transitoire qui vaut la peine d'être retenté."""
+    raise LLMError(f"Connexion à {provider} impossible ({e.__class__.__name__}). Vérifiez la connexion réseau.", retryable=True)
+
+
 def _generate_openai(system_prompt: str, user_message: str, model: str) -> str:
     if not settings.OPENAI_API_KEY:
         raise LLMError("OPENAI_API_KEY manquante dans .env", retryable=False)
@@ -65,6 +73,8 @@ def _generate_openai(system_prompt: str, user_message: str, model: str) -> str:
         raise LLMError("Timeout OpenAI — réessayez.", retryable=True)
     except requests.exceptions.HTTPError as e:
         _raise_http_error(e, "OpenAI")
+    except requests.exceptions.RequestException as e:
+        _raise_connection_error(e, "OpenAI")
 
 
 def _generate_gemini(system_prompt: str, user_message: str, model: str) -> str:
@@ -88,6 +98,8 @@ def _generate_gemini(system_prompt: str, user_message: str, model: str) -> str:
         raise LLMError("Timeout Gemini — réessayez.", retryable=True)
     except requests.exceptions.HTTPError as e:
         _raise_http_error(e, "Gemini")
+    except requests.exceptions.RequestException as e:
+        _raise_connection_error(e, "Gemini")
 
 
 def _generate_openrouter(system_prompt: str, user_message: str, model: str) -> str:
@@ -116,6 +128,8 @@ def _generate_openrouter(system_prompt: str, user_message: str, model: str) -> s
         raise LLMError("Timeout OpenRouter — réessayez.", retryable=True)
     except requests.exceptions.HTTPError as e:
         _raise_http_error(e, "OpenRouter")
+    except requests.exceptions.RequestException as e:
+        _raise_connection_error(e, "OpenRouter")
 
 
 _PROVIDERS = {
@@ -173,21 +187,28 @@ def _stream_openai_compatible(url: str, headers: dict, model: str, system_prompt
         raise LLMError(f"Timeout {provider} — réessayez.", retryable=True)
     except requests.exceptions.HTTPError as e:
         _raise_http_error(e, provider)
-    for raw in resp.iter_lines():
-        if not raw:
-            continue
-        line = raw.decode("utf-8").strip()
-        if not line.startswith("data:"):
-            continue
-        data = line[len("data:"):].strip()
-        if data == "[DONE]":
-            break
-        try:
-            delta = json.loads(data)["choices"][0]["delta"].get("content")
-        except (json.JSONDecodeError, KeyError, IndexError):
-            continue
-        if delta:
-            yield delta
+    except requests.exceptions.RequestException as e:
+        _raise_connection_error(e, provider)
+    try:
+        for raw in resp.iter_lines():
+            if not raw:
+                continue
+            line = raw.decode("utf-8").strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[len("data:"):].strip()
+            if data == "[DONE]":
+                break
+            try:
+                delta = json.loads(data)["choices"][0]["delta"].get("content")
+            except (json.JSONDecodeError, KeyError, IndexError):
+                continue
+            if delta:
+                yield delta
+    except requests.exceptions.RequestException as e:
+        # Coupure réseau en cours de flux : si aucun token n'a encore été
+        # émis, l'appelant peut encore basculer sur le modèle suivant.
+        _raise_connection_error(e, provider)
 
 
 def _stream_openai(system_prompt: str, user_message: str, model: str) -> Iterator[str]:
