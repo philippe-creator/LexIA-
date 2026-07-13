@@ -28,13 +28,24 @@ ROLE_INSTRUCTIONS = {
     },
 }
 
+CONTEXT_PREAMBLE = (
+    "Ce service couvre EXCLUSIVEMENT le droit marocain. Tous les textes fournis ci-dessous sont "
+    "marocains, sauf mention contraire explicite DANS le texte lui-même. N'affirme JAMAIS qu'un "
+    "texte provient d'un autre pays (français, tunisien, européen...) — même s'il te rappelle un "
+    "texte étranger que tu connais par ailleurs. C'est une erreur factuelle grave sur un outil de "
+    "droit marocain : en cas de doute sur l'origine d'un texte, ne te prononce simplement pas dessus."
+)
+
 BASE_RULES = """
 RÈGLES :
-1. Fonde ta réponse UNIQUEMENT sur les textes juridiques fournis ci-dessous. N'invente et n'extrapole jamais un fait juridique absent des sources.
+1. Fonde ta réponse UNIQUEMENT sur les textes juridiques fournis ci-dessous. N'invente et n'extrapole jamais un fait juridique absent des sources — y compris le pays, la juridiction ou le contexte d'origine d'un texte : si ce n'est pas écrit noir sur blanc dans la source, ne l'affirme pas.
 2. Cite tes sources par leur nom réel, entre guillemets français, directement dans la phrase (ex. « Loi 65-99, art. 52 » indique que...). N'utilise JAMAIS "SOURCE 1", "SOURCE X" ou un numéro brut — l'utilisateur doit pouvoir suivre la phrase sans légende externe.
-3. Si les textes fournis répondent à la question (même partiellement) : structure TOUJOURS ta réponse avec les sections indiquées ci-dessous (STRUCTURE DE RÉPONSE), sous forme de titres Markdown ("## Titre"). N'écris jamais un simple paragraphe de citations mises bout à bout — chaque section doit apporter une valeur différente (comprendre / agir / anticiper selon le profil), pas répéter les mêmes faits sous un autre angle.
+3. Si les textes fournis répondent à la question (même partiellement), adapte la forme à la question :
+   - Question précise à réponse courte et directe (un fait, une règle simple) : réponds en un ou deux paragraphes fluides, SANS titres — imposer une structure sur une réponse courte la rend mécanique et artificielle.
+   - Question substantielle (plusieurs aspects, plusieurs articles, nuances à expliciter) : structure ta réponse avec les sections indiquées ci-dessous (STRUCTURE DE RÉPONSE), sous forme de titres Markdown ("## Titre"). Chaque section doit apporter une valeur différente (comprendre / agir / anticiper selon le profil), jamais répéter les mêmes faits sous un autre angle.
+   Dans les deux cas, n'écris jamais un simple paragraphe de citations mises bout à bout sans les relier par un raisonnement.
 4. Si les textes fournis NE répondent PAS à la question, ou n'y répondent qu'insuffisamment :
-   - N'utilise PAS la structure ci-dessous — dis-le clairement et simplement, sans détour.
+   - N'utilise PAS de structure à titres — dis-le clairement et simplement, sans détour.
    - Précise ce que les textes fournis couvrent réellement, pour que l'utilisateur comprenne le périmètre de ce que tu as pu vérifier.
    - Si la question est large ou ambiguë, propose 1 à 2 reformulations plus précises qui permettraient une réponse exploitable.
    - Ne laisse JAMAIS la réponse en impasse : oriente toujours vers une suite possible (reformulation, domaine à préciser, ou consultation d'un professionnel/portail officiel si la question sort du champ couvert par les sources).
@@ -54,7 +65,7 @@ def _clean_source_name(filename: str) -> str:
 
 def build_prompt(query: str, retrieved_chunks: list[dict], user_role: str = "particulier", conversation_history: list[dict] = None) -> tuple[str, str]:
     role = ROLE_INSTRUCTIONS.get(user_role, ROLE_INSTRUCTIONS["particulier"])
-    system = f"{role['persona']}\n{BASE_RULES}\nSTRUCTURE DE RÉPONSE (si les sources permettent de répondre — voir règle 3) :\n{role['structure']}"
+    system = f"{CONTEXT_PREAMBLE}\n\n{role['persona']}\n{BASE_RULES}\nSTRUCTURE DE RÉPONSE (uniquement pour les questions substantielles — voir règle 3) :\n{role['structure']}"
     context_parts = []
     for c in retrieved_chunks:
         meta = c.get("metadata", {})
