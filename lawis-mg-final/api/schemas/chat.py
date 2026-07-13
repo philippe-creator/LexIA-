@@ -20,6 +20,7 @@ class Citation(BaseModel):
     domain: str
     source: str
     filename: str
+    page: Optional[int] = None
     url: Optional[str] = None
     excerpt: str
     score: float

@@ -45,7 +45,7 @@ function SourcePanel({ citations, onClose }) {
               <span className="source-idx">[{c.index}]</span>
               <span className={`source-domain-badge`}>{DOMAIN_LABELS[c.domain] || c.domain}</span>
             </div>
-            <div className="source-label">📄 {c.label || c.filename}</div>
+            <div className="source-label">📄 {c.label || c.filename}{c.page ? ` — p. ${c.page}` : ""}</div>
             <blockquote className="source-excerpt">{c.excerpt}</blockquote>
             <div className="source-footer">
               <span className="source-score">Pertinence : {Math.round((c.score||0)*100)}%</span>

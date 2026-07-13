@@ -126,6 +126,35 @@ def chunk_document(text: str, metadata: dict = None) -> list[Chunk]:
     ]
 
 
+def assign_pages(chunks: list[Chunk], full_text: str, page_offsets: list[int] | None) -> None:
+    """Annote chaque chunk avec le numéro de page (1-indexé) où il commence,
+    par recherche de sa position dans le texte source complet. Approximatif
+    près des frontières de page (le chevauchement entre chunks peut décaler
+    la correspondance de quelques caractères) mais suffisant pour retrouver
+    la bonne page dans le PDF — traçabilité (BNF-02 du cahier des charges).
+    Ne fait rien si `page_offsets` est absent (texte non issu d'un PDF)."""
+    if not page_offsets:
+        return
+    cursor = 0
+    for c in chunks:
+        needle = c.text.strip()[:60]
+        if not needle:
+            continue
+        pos = full_text.find(needle, max(0, cursor - 200))
+        if pos == -1:
+            pos = full_text.find(needle)
+        if pos == -1:
+            continue
+        cursor = pos
+        page_num = 1
+        for i, offset in enumerate(page_offsets):
+            if offset <= pos:
+                page_num = i + 1
+            else:
+                break
+        c.metadata["page"] = page_num
+
+
 if __name__ == "__main__":
     sample = """
     Article 1 — Le présent code régit les relations entre employeurs et salariés.

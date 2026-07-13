@@ -18,7 +18,18 @@ NATIVE_TEXT_THRESHOLD = 50  # nb de caractères minimum pour considérer un PDF 
 MAX_PDF_PAGES = 500  # garde-fou contre les PDF adversariaux (déni de service via OCR)
 
 
-def extract_text_native(pdf_path: Path) -> str:
+def _join_with_offsets(text_pages: list[str]) -> tuple[str, list[int]]:
+    """Joint les textes de page et retourne, pour chaque page, l'offset (en
+    caractères) où elle commence dans le texte joint — permet de retrouver
+    plus tard la page d'origine d'un passage cité (traçabilité, BNF-02)."""
+    offsets, offset = [], 0
+    for t in text_pages:
+        offsets.append(offset)
+        offset += len(t) + 1  # +1 pour le "\n" séparateur
+    return "\n".join(text_pages), offsets
+
+
+def extract_text_native(pdf_path: Path) -> tuple[str, list[int]]:
     """Extraction texte natif avec PyMuPDF (rapide, pas d'OCR)."""
     text_pages = []
     try:
@@ -28,10 +39,10 @@ def extract_text_native(pdf_path: Path) -> str:
         doc.close()
     except Exception as e:
         logger.warning(f"PyMuPDF impossible sur {pdf_path.name} : {e}")
-    return "\n".join(text_pages)
+    return _join_with_offsets(text_pages)
 
 
-def extract_text_ocr(pdf_path: Path) -> str:
+def extract_text_ocr(pdf_path: Path) -> tuple[str, list[int]]:
     """OCR sur chaque page du PDF (pour PDFs images / fac-similés scannés)."""
     text_pages = []
     try:
@@ -42,7 +53,7 @@ def extract_text_ocr(pdf_path: Path) -> str:
             text_pages.append(text)
     except Exception as e:
         logger.error(f"OCR impossible sur {pdf_path.name} : {e}")
-    return "\n".join(text_pages)
+    return _join_with_offsets(text_pages)
 
 
 def extract_text(pdf_path: Path) -> dict:
@@ -67,7 +78,7 @@ def extract_text(pdf_path: Path) -> dict:
         return {"text": "", "method": "rejected_too_many_pages", "path": str(pdf_path)}
 
     # Tentative extraction native
-    native_text = extract_text_native(pdf_path)
+    native_text, native_offsets = extract_text_native(pdf_path)
     clean_native = native_text.replace("\n", " ").strip()
 
     if len(clean_native) >= NATIVE_TEXT_THRESHOLD:
@@ -77,16 +88,18 @@ def extract_text(pdf_path: Path) -> dict:
             "method": "native",
             "path": str(pdf_path),
             "char_count": len(clean_native),
+            "page_offsets": native_offsets,
         }
 
     # Fallback OCR
     logger.info(f"PDF image détecté, OCR en cours : {pdf_path.name}")
-    ocr_text = extract_text_ocr(pdf_path)
+    ocr_text, ocr_offsets = extract_text_ocr(pdf_path)
     return {
         "text": ocr_text,
         "method": "ocr",
         "path": str(pdf_path),
         "char_count": len(ocr_text.replace("\n", " ").strip()),
+        "page_offsets": ocr_offsets,
     }
 
 

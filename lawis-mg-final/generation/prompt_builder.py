@@ -39,7 +39,7 @@ CONTEXT_PREAMBLE = (
 BASE_RULES = """
 RÈGLES :
 1. Fonde ta réponse UNIQUEMENT sur les textes juridiques fournis ci-dessous. N'invente et n'extrapole jamais un fait juridique absent des sources — y compris le pays, la juridiction ou le contexte d'origine d'un texte : si ce n'est pas écrit noir sur blanc dans la source, ne l'affirme pas.
-2. Cite tes sources par leur nom réel, entre guillemets français, directement dans la phrase (ex. « Loi 65-99, art. 52 » indique que...). N'utilise JAMAIS "SOURCE 1", "SOURCE X" ou un numéro brut — l'utilisateur doit pouvoir suivre la phrase sans légende externe.
+2. Cite tes sources par leur nom réel, entre guillemets français, directement dans la phrase (ex. « Loi 65-99, art. 52 » indique que...). Quand une page est indiquée après le nom de la source ("p. X"), reprends-la dans ta citation pour permettre de retrouver le passage exact dans le document officiel. N'utilise JAMAIS "SOURCE 1", "SOURCE X" ou un numéro brut — l'utilisateur doit pouvoir suivre la phrase sans légende externe.
 3. Si les textes fournis répondent à la question (même partiellement), adapte la forme à la question :
    - Question précise à réponse courte et directe (un fait, une règle simple) : réponds en un ou deux paragraphes fluides, SANS titres — imposer une structure sur une réponse courte la rend mécanique et artificielle.
    - Question substantielle (plusieurs aspects, plusieurs articles, nuances à expliciter) : structure ta réponse avec les sections indiquées ci-dessous (STRUCTURE DE RÉPONSE), sous forme de titres Markdown ("## Titre"). Chaque section doit apporter une valeur différente (comprendre / agir / anticiper selon le profil), jamais répéter les mêmes faits sous un autre angle.
@@ -71,7 +71,8 @@ def build_prompt(query: str, retrieved_chunks: list[dict], user_role: str = "par
         meta = c.get("metadata", {})
         source_name = _clean_source_name(meta.get("filename"))
         domain_tag = f" [{meta.get('domain')}]" if meta.get("domain") else ""
-        context_parts.append(f"« {source_name} »{domain_tag}\n{c['text']}")
+        page_tag = f", p. {meta.get('page')}" if meta.get("page") else ""
+        context_parts.append(f"« {source_name} »{page_tag}{domain_tag}\n{c['text']}")
     context = "\n\n---\n\n".join(context_parts)
     history_section = ""
     if conversation_history:
@@ -87,6 +88,7 @@ def format_citations(chunks: list[dict]) -> list[dict]:
         "domain": c.get("domain", c.get("metadata",{}).get("domain","N/A")),
         "source": c.get("metadata",{}).get("source","N/A"),
         "filename": c.get("metadata",{}).get("filename","N/A"),
+        "page": c.get("metadata",{}).get("page"),
         "url": c.get("metadata",{}).get("url"),
         "excerpt": c["text"][:250] + "..." if len(c["text"]) > 250 else c["text"],
         "score": float(c.get("rerank_score", c.get("rrf_score", c.get("score", 0)))),

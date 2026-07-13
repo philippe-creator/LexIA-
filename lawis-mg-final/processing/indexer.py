@@ -8,7 +8,7 @@ from loguru import logger
 import chromadb
 from chromadb.config import Settings
 
-from processing.chunker import chunk_document, Chunk
+from processing.chunker import chunk_document, assign_pages, Chunk
 from processing.embedder import embed_documents
 from core.domains import DOMAINS, validate_domain
 
@@ -29,9 +29,11 @@ def get_collection(domain: str) -> chromadb.Collection:
     return collection
 
 
-def index_document(text: str, domain: str, metadata: dict = None) -> int:
+def index_document(text: str, domain: str, metadata: dict = None, page_offsets: list[int] = None) -> int:
     """
     Découpe un texte en chunks et les indexe dans le corpus du domaine.
+    `page_offsets` (optionnel, fourni pour les PDF) permet d'annoter chaque
+    chunk avec son numéro de page d'origine — voir chunker.assign_pages.
     Retourne le nombre de chunks indexés.
     """
     metadata = metadata or {}
@@ -44,6 +46,7 @@ def index_document(text: str, domain: str, metadata: dict = None) -> int:
     if not chunks:
         logger.warning("Aucun chunk généré.")
         return 0
+    assign_pages(chunks, text, page_offsets)
 
     # Embeddings
     texts = [c.text for c in chunks]

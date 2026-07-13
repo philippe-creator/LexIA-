@@ -21,9 +21,11 @@ from processing.indexer import index_document as _index_chunks
 _NO_SNAPSHOT_SOURCES = {"user_upload"}
 
 
-def ingest_text(text: str, domain: str, filename: str, source: str = None, extra_metadata: dict = None) -> dict:
+def ingest_text(text: str, domain: str, filename: str, source: str = None, extra_metadata: dict = None, page_offsets: list[int] = None) -> dict:
     """
     Ingère un texte déjà extrait dans le corpus d'un domaine.
+    `page_offsets` (fourni par ingest_pdf pour les PDF) permet de retrouver la
+    page d'origine de chaque chunk dans les citations.
     Retourne {"chunks_indexed": int, "snapshot_saved": bool}.
     """
     validate_domain(domain)
@@ -32,7 +34,7 @@ def ingest_text(text: str, domain: str, filename: str, source: str = None, extra
         return {"chunks_indexed": 0, "snapshot_saved": False}
 
     metadata = {"filename": filename, "source": source or "unknown", **(extra_metadata or {})}
-    n_chunks = _index_chunks(text=text, domain=domain, metadata=metadata)
+    n_chunks = _index_chunks(text=text, domain=domain, metadata=metadata, page_offsets=page_offsets)
 
     snapshot_saved = False
     if source not in _NO_SNAPSHOT_SOURCES:
@@ -63,4 +65,5 @@ def ingest_pdf(pdf_path: Path, domain: str, source: str = None, extra_metadata: 
     return ingest_text(
         result["text"], domain=domain, filename=filename or pdf_path.name, source=source,
         extra_metadata={**(extra_metadata or {}), "extraction_method": result.get("method")},
+        page_offsets=result.get("page_offsets"),
     )

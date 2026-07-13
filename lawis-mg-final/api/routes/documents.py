@@ -67,7 +67,11 @@ async def _index(doc, db):
     from datetime import datetime
     doc.status="processing"; db.commit()
     p = Path(doc.file_path)
-    if doc.mime_type=="application/pdf": text = extract_text(p)["text"]
+    page_offsets = None
+    if doc.mime_type=="application/pdf":
+        extracted = extract_text(p)
+        text = extracted["text"]
+        page_offsets = extracted.get("page_offsets")
     elif doc.mime_type=="text/plain": text = p.read_text(encoding="utf-8",errors="ignore")
     else:
         try:
@@ -77,7 +81,7 @@ async def _index(doc, db):
     # source="user_upload" : le pipeline exclut délibérément ces documents du
     # snapshot de version partagé (voir ingestion/pipeline.py) pour ne pas
     # exposer un upload privé via /compare à d'autres utilisateurs.
-    result = ingest_text(text, domain=doc.domain, filename=doc.original_filename, source="user_upload", extra_metadata={"user_id":doc.user_id,"document_id":doc.id})
+    result = ingest_text(text, domain=doc.domain, filename=doc.original_filename, source="user_upload", extra_metadata={"user_id":doc.user_id,"document_id":doc.id}, page_offsets=page_offsets)
     doc.status="indexed"; doc.chunk_count=result["chunks_indexed"]; doc.indexed_at=datetime.utcnow(); db.commit()
 
 @router.get("/")
