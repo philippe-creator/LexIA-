@@ -30,6 +30,22 @@ const DOMAINS = [
 
 const DOMAIN_LABELS = { travail:"Droit du travail", fiscal:"Droit fiscal", societes:"Droit des sociétés", donnees_personnelles:"Protection des données", jurisprudence:"Jurisprudence", divers:"Divers" };
 
+const DOC_TYPES = [
+  { value: "", label: "Tous types" },
+  { value: "loi", label: "Loi" },
+  { value: "dahir", label: "Dahir" },
+  { value: "decret", label: "Décret" },
+  { value: "arrete", label: "Arrêté" },
+  { value: "circulaire", label: "Circulaire" },
+  { value: "jurisprudence", label: "Jurisprudence" },
+  { value: "autre", label: "Autre" },
+];
+
+// L'année extraite du nom de fichier est approximative (voir processing/doc_type.py) —
+// on propose une plage raisonnable plutôt que d'interroger le backend pour la liste exacte.
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 12 }, (_, i) => CURRENT_YEAR - i);
+
 // Défense en profondeur : l'API filtre déjà les schémas non http(s), mais on
 // ne fait jamais confiance à une seule couche pour un lien cliquable.
 const isSafeUrl = (url) => typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"));
@@ -118,6 +134,8 @@ export default function ChatWindow() {
   const { messages, conversations, activeConvId, loading, error, sendMessage, loadConversations, loadConversation, startNewConversation, deleteConversation, setError } = useChat();
   const [input, setInput] = useState("");
   const [domain, setDomain] = useState(null);
+  const [docType, setDocType] = useState(null);
+  const [year, setYear] = useState(null);
   const [activeCitations, setActiveCitations] = useState([]);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -129,7 +147,7 @@ export default function ChatWindow() {
     const query = q || input.trim();
     if (!query || loading) return;
     setInput("");
-    await sendMessage({ query, domain });
+    await sendMessage({ query, domain, docType, year });
   };
 
   const handleKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } };
@@ -164,6 +182,15 @@ export default function ChatWindow() {
                 <span>{d.emoji}</span><span>{d.label}</span>
               </button>
             ))}
+          </div>
+          <div className="filter-selects">
+            <select value={docType || ""} onChange={(e) => setDocType(e.target.value || null)} className="filter-select" title="Filtrer par type de document">
+              {DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <select value={year || ""} onChange={(e) => setYear(e.target.value ? Number(e.target.value) : null)} className="filter-select" title="Filtrer par année">
+              <option value="">Toutes années</option>
+              {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
           </div>
         </div>
 

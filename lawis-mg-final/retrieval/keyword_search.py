@@ -32,8 +32,9 @@ class BM25Index:
         self.index = BM25Okapi(corpus) if corpus else None
         logger.info(f"BM25 [{self.domain}] : {len(documents)} chunks indexés")
 
-    def search(self, query: str, n_results: int = 5) -> list[dict]:
-        """Recherche BM25 et retourne les top-N résultats."""
+    def search(self, query: str, n_results: int = 5, doc_type: str | None = None, year: int | str | None = None) -> list[dict]:
+        """Recherche BM25 et retourne les top-N résultats parmi ceux qui
+        satisfont les filtres avancés (type de document, année), le cas échéant."""
         if not self.index or not self.documents:
             logger.warning(f"Index BM25 [{self.domain}] vide.")
             return []
@@ -41,22 +42,26 @@ class BM25Index:
         tokens = tokenize(query)
         scores = self.index.get_scores(tokens)
 
-        scored = sorted(
-            zip(scores, self.documents),
-            key=lambda x: x[0],
-            reverse=True,
-        )[:n_results]
+        scored = sorted(zip(scores, self.documents), key=lambda x: x[0], reverse=True)
 
         results = []
         for score, doc in scored:
-            if score > 0:
-                results.append({
-                    "text": doc["text"],
-                    "metadata": doc.get("metadata", {}),
-                    "score": float(score),
-                    "domain": self.domain,
-                    "method": "bm25",
-                })
+            if score <= 0:
+                break  # trié décroissant : plus rien d'utile après un score nul
+            meta = doc.get("metadata", {})
+            if doc_type and meta.get("doc_type") != doc_type:
+                continue
+            if year and str(meta.get("year", "")) != str(year):
+                continue
+            results.append({
+                "text": doc["text"],
+                "metadata": meta,
+                "score": float(score),
+                "domain": self.domain,
+                "method": "bm25",
+            })
+            if len(results) >= n_results:
+                break
 
         logger.debug(f"BM25 [{self.domain}] : {len(results)} résultats pour '{query[:50]}'")
         return results
@@ -107,7 +112,7 @@ def invalidate_bm25_cache(domain: str = None):
         _bm25_cache.clear()
 
 
-def keyword_search(query: str, domain: str, n_results: int = 5) -> list[dict]:
+def keyword_search(query: str, domain: str, n_results: int = 5, doc_type: str | None = None, year: int | str | None = None) -> list[dict]:
     """Point d'entrée : recherche BM25 dans un domaine."""
     index = get_bm25_index(domain)
-    return index.search(query, n_results=n_results)
+    return index.search(query, n_results=n_results, doc_type=doc_type, year=year)

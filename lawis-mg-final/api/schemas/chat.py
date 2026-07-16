@@ -11,6 +11,8 @@ class ChatRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=2000)
     conversation_id: Optional[str] = None
     domain: Optional[str] = None
+    doc_type: Optional[str] = None
+    year: Optional[int] = None
     top_k: int = Field(5, ge=1, le=10)
     adapt_to_profile: bool = True
 
@@ -46,6 +48,8 @@ class ChatResponse(BaseModel):
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=2)
     domains: Optional[list[str]] = None
+    doc_type: Optional[str] = None
+    year: Optional[int] = None
     top_k: int = Field(5, ge=1, le=20)
 
 class SearchResult(BaseModel):

@@ -11,6 +11,7 @@ from api.schemas.chat import ChatRequest, ChatResponse, Citation
 from retrieval.hybrid_retriever import retrieve
 from retrieval.reranker import confidence_label_for_score
 from core.domains import DOMAINS
+from processing.doc_type import DOC_TYPES
 from generation.llm_client import generate, generate_stream
 from generation.prompt_builder import build_prompt, format_citations, extract_suggested_queries
 
@@ -30,10 +31,15 @@ _NO_CONTEXT_ANSWER = (
 def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
-@router.post("/", response_model=ChatResponse)
-async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = Depends(get_db)):
+def _validate_filters(request: ChatRequest):
     if request.domain and request.domain not in DOMAINS:
         raise HTTPException(400, f"Domaine invalide : {request.domain}")
+    if request.doc_type and request.doc_type not in DOC_TYPES:
+        raise HTTPException(400, f"Type de document invalide : {request.doc_type} (attendu : {', '.join(DOC_TYPES)})")
+
+@router.post("/", response_model=ChatResponse)
+async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = Depends(get_db)):
+    _validate_filters(request)
     try:
         logger.info(f"Chat [{current_user.role}]: {request.query[:60]}")
         repo = ConversationRepository(db)
@@ -41,7 +47,7 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = De
         repo.add_message(conv.id, "user", request.query)
         history = [{"role": m.role, "content": m.content} for m in repo.get_history(conv.id, 8)[:-1]]
         domains = [request.domain] if request.domain else None
-        chunks, conf_score, conf_label, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id)
+        chunks, conf_score, conf_label, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year)
         if not chunks:
             answer = _NO_CONTEXT_ANSWER
             msg = repo.add_message(conv.id, "assistant", answer, citations=[], domains_searched=domains_searched, confidence_score=0.0)
@@ -71,8 +77,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
       - {"type":"done", "message_id": "...", "suggested_queries": [...]}
       - {"type":"error", "detail": "..."}   en cas d'échec de génération
     """
-    if request.domain and request.domain not in DOMAINS:
-        raise HTTPException(400, f"Domaine invalide : {request.domain}")
+    _validate_filters(request)
     logger.info(f"Chat stream [{current_user.role}]: {request.query[:60]}")
     repo = ConversationRepository(db)
     conv = repo.get_or_create(current_user.id, request.conversation_id, request.query)
@@ -85,7 +90,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
     # événementielle pour ne pas la geler pendant ~2 s.
     loop = asyncio.get_event_loop()
     chunks, conf_score, conf_label, domains_searched = await loop.run_in_executor(
-        None, lambda: retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id)
+        None, lambda: retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year)
     )
 
     if not chunks:

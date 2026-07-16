@@ -7,6 +7,7 @@ from api.core.dependencies import CurrentUser, require_role
 from api.schemas.chat import SearchRequest, SearchResponse, SearchResult, WatchStatus, CorpusStats
 from retrieval.hybrid_retriever import retrieve
 from processing.indexer import get_corpus_stats
+from processing.doc_type import DOC_TYPES
 from core.domains import DOMAINS
 
 search_router = APIRouter(prefix="/search", tags=["Recherche"])
@@ -18,7 +19,9 @@ async def search(request: SearchRequest, current_user: CurrentUser):
     if request.domains:
         invalid = [d for d in request.domains if d not in DOMAINS]
         if invalid: raise HTTPException(400, f"Domaine(s) invalide(s) : {', '.join(invalid)}")
-    chunks, _, _, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=request.domains, user_id=current_user.id)
+    if request.doc_type and request.doc_type not in DOC_TYPES:
+        raise HTTPException(400, f"Type de document invalide : {request.doc_type} (attendu : {', '.join(DOC_TYPES)})")
+    chunks, _, _, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=request.domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year)
     results = [SearchResult(text=c["text"], metadata=c.get("metadata",{}), domain=c.get("domain","N/A"), method=c.get("method","hybrid"), score=float(c.get("rerank_score",c.get("rrf_score",c.get("score",0))))) for c in chunks]
     return SearchResponse(results=results, domains_searched=domains_searched, total=len(results))
 

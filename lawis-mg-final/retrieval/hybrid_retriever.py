@@ -21,21 +21,21 @@ def _rrf(lists: list[list[dict]]) -> list[dict]:
         d = docs[key].copy(); d["rrf_score"] = round(scores[key], 6); fused.append(d)
     return fused
 
-def _search(variant: str, domains: list[str], n: int, user_id: str | None) -> list[dict]:
+def _search(variant: str, domains: list[str], n: int, user_id: str | None, doc_type: str | None, year: int | str | None) -> list[dict]:
     results = []
-    results.extend(multi_domain_vector_search(variant, domains, n_results_per_domain=n, user_id=user_id))
-    for domain in domains: results.extend(keyword_search(variant, domain, n_results=n))
+    results.extend(multi_domain_vector_search(variant, domains, n_results_per_domain=n, user_id=user_id, doc_type=doc_type, year=year))
+    for domain in domains: results.extend(keyword_search(variant, domain, n_results=n, doc_type=doc_type, year=year))
     return results
 
-def retrieve(query: str, top_k: int = None, forced_domains: list[str] = None, user_id: str | None = None) -> tuple[list[dict], float, str, list[str]]:
+def retrieve(query: str, top_k: int = None, forced_domains: list[str] = None, user_id: str | None = None, doc_type: str | None = None, year: int | str | None = None) -> tuple[list[dict], float, str, list[str]]:
     top_k = top_k or settings.TOP_K_RETRIEVAL
     domains = forced_domains or route_query(query)
-    logger.info(f"Retrieval — domaines : {domains}")
+    logger.info(f"Retrieval — domaines : {domains}" + (f" | doc_type={doc_type}" if doc_type else "") + (f" | year={year}" if year else ""))
     variants = expand_query(query, 2) if settings.QUERY_EXPANSION_ENABLED else [query]
     n = max(3, top_k)
     all_lists = []
     with ThreadPoolExecutor(max_workers=min(len(variants), 3)) as ex:
-        futures = {ex.submit(_search, v, domains, n, user_id): v for v in variants}
+        futures = {ex.submit(_search, v, domains, n, user_id, doc_type, year): v for v in variants}
         for f in as_completed(futures):
             try:
                 res = f.result(timeout=15)

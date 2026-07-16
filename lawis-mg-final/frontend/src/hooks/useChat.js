@@ -31,7 +31,7 @@ export function useChat() {
     setActiveConvId(null); setMessages([]); setError(null);
   }, []);
 
-  const sendMessage = useCallback(async ({ query, domain, top_k = 5, adapt_to_profile = true }) => {
+  const sendMessage = useCallback(async ({ query, domain, docType, year, top_k = 5, adapt_to_profile = true }) => {
     if (!query.trim() || loading) return;
     const userMsg = { id: `tmp-${Date.now()}`, role: "user", content: query, citations: [], created_at: new Date().toISOString() };
     const assistantId = `stream-${Date.now()}`;
@@ -44,7 +44,7 @@ export function useChat() {
 
     try {
       await chatService.stream(
-        { query, conversation_id: activeConvId, domain: domain || null, top_k, adapt_to_profile },
+        { query, conversation_id: activeConvId, domain: domain || null, doc_type: docType || null, year: year || null, top_k, adapt_to_profile },
         {
           onMeta: (m) => {
             if (!activeConvId) { setActiveConvId(m.conversation_id); loadConversations(); }

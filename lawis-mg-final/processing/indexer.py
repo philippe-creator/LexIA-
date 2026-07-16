@@ -10,6 +10,7 @@ from chromadb.config import Settings
 
 from processing.chunker import chunk_document, assign_pages, Chunk
 from processing.embedder import embed_documents
+from processing.doc_type import classify_doc_type, extract_year
 from core.domains import DOMAINS, validate_domain
 
 VECTOR_STORE_DIR = Path(os.getenv("CHROMA_PERSIST_DIR", "./data/vector_stores"))
@@ -40,6 +41,15 @@ def index_document(text: str, domain: str, metadata: dict = None, page_offsets: 
     if not text.strip():
         logger.warning("Texte vide, indexation ignorée.")
         return 0
+
+    # Filtres avancés (type de document, année) — dérivés du nom de fichier,
+    # appliqués uniformément à tous les chunks du document. Un appelant peut
+    # fournir explicitement doc_type/year dans metadata pour outrepasser la
+    # déduction automatique.
+    metadata.setdefault("doc_type", classify_doc_type(metadata.get("filename"), domain))
+    year = metadata.get("year") or extract_year(metadata.get("filename"))
+    if year:
+        metadata.setdefault("year", year)
 
     # Chunking
     chunks: list[Chunk] = chunk_document(text, metadata=metadata)
