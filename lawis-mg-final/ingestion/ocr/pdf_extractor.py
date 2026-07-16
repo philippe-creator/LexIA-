@@ -12,6 +12,16 @@ import pytesseract
 from pdf2image import convert_from_path
 from PIL import Image
 
+from core.config import settings
+
+# Sur les postes Windows sans poppler/tesseract enregistrés dans le PATH du
+# processus Python (le cas courant en dev local), on pointe explicitement
+# vers les binaires plutôt que de dépendre du PATH — voir core/config.py.
+# En Docker/Linux, ces réglages restent vides et le PATH système suffit.
+_POPPLER_PATH = settings.POPPLER_PATH or None
+if settings.TESSERACT_CMD:
+    pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
+
 # Langues OCR : français + arabe (le BO marocain est bilingue)
 OCR_LANGS = "fra+ara"
 NATIVE_TEXT_THRESHOLD = 50  # nb de caractères minimum pour considérer un PDF "texte natif"
@@ -46,7 +56,7 @@ def extract_text_ocr(pdf_path: Path) -> tuple[str, list[int]]:
     """OCR sur chaque page du PDF (pour PDFs images / fac-similés scannés)."""
     text_pages = []
     try:
-        images = convert_from_path(str(pdf_path), dpi=300)
+        images = convert_from_path(str(pdf_path), dpi=300, poppler_path=_POPPLER_PATH)
         for i, image in enumerate(images):
             logger.debug(f"OCR page {i+1}/{len(images)} : {pdf_path.name}")
             text = pytesseract.image_to_string(image, lang=OCR_LANGS)

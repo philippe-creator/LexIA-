@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: int = 2048
     EMBEDDING_MODEL: str = "intfloat/multilingual-e5-large"
     RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    # Chemins vers les binaires poppler (pdftoppm...) et tesseract, requis pour
+    # l'OCR des PDF scannés. Vides par défaut : sur Linux/Docker, poppler-utils
+    # et tesseract-ocr sont installés au niveau système (Dockerfile.api) et déjà
+    # sur le PATH — ces réglages ne servent qu'aux postes Windows où ces
+    # binaires ne sont pas globalement enregistrés dans le PATH du processus Python.
+    POPPLER_PATH: str = ""
+    TESSERACT_CMD: str = ""
     VECTOR_STORE_PROVIDER: str = "chroma"
     CHROMA_PERSIST_DIR: str = "./data/vector_stores"
     RAW_DATA_DIR: str = "./data/raw"
