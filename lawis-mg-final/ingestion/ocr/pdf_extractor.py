@@ -83,11 +83,10 @@ def extract_text(pdf_path: Path) -> dict:
     except Exception as e:
         logger.error(f"PDF illisible {pdf_path.name} : {e}")
         return {"text": "", "method": "error", "path": str(pdf_path)}
-    if page_count > MAX_PDF_PAGES:
-        logger.warning(f"PDF rejeté ({page_count} pages > {MAX_PDF_PAGES}) : {pdf_path.name}")
-        return {"text": "", "method": "rejected_too_many_pages", "path": str(pdf_path)}
 
-    # Tentative extraction native
+    # Tentative extraction native (rapide, peu importe le nombre de pages :
+    # aucun rendu image, donc pas de risque de déni de service — le garde-fou
+    # MAX_PDF_PAGES ne concerne que le chemin OCR ci-dessous).
     native_text, native_offsets = extract_text_native(pdf_path)
     clean_native = native_text.replace("\n", " ").strip()
 
@@ -101,7 +100,11 @@ def extract_text(pdf_path: Path) -> dict:
             "page_offsets": native_offsets,
         }
 
-    # Fallback OCR
+    # Fallback OCR — coûteux (rendu de chaque page en image) : c'est ICI que le
+    # garde-fou anti-déni-de-service sur le nombre de pages a du sens.
+    if page_count > MAX_PDF_PAGES:
+        logger.warning(f"PDF image rejeté pour OCR ({page_count} pages > {MAX_PDF_PAGES}) : {pdf_path.name}")
+        return {"text": "", "method": "rejected_too_many_pages", "path": str(pdf_path)}
     logger.info(f"PDF image détecté, OCR en cours : {pdf_path.name}")
     ocr_text, ocr_offsets = extract_text_ocr(pdf_path)
     return {
