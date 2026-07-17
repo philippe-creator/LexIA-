@@ -89,6 +89,53 @@ async def list_docs(current_user: CurrentUser, db: Session = Depends(get_db)):
     docs = db.query(UserDocument).filter(UserDocument.user_id==current_user.id).order_by(UserDocument.created_at.desc()).all()
     return [{"id":d.id,"filename":d.original_filename,"domain":d.domain,"status":d.status,"chunk_count":d.chunk_count,"file_size":d.file_size,"error_message":d.error_message,"created_at":d.created_at.isoformat()} for d in docs]
 
+@router.post("/{doc_id}/audit")
+async def audit_document(doc_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
+    """Audite un contrat importé au regard du droit du travail marocain :
+    extrait son texte, récupère des passages de loi pertinents (grounding RAG)
+    et génère un rapport structuré citant les articles applicables."""
+    import asyncio
+    from ingestion.ocr.pdf_extractor import extract_text
+    from retrieval.hybrid_retriever import retrieve
+    from generation.prompt_builder import build_audit_prompt, format_citations
+    from generation.llm_client import generate
+
+    doc = db.query(UserDocument).filter(UserDocument.id == doc_id, UserDocument.user_id == current_user.id).first()
+    if not doc:
+        raise HTTPException(404, "Document introuvable.")
+
+    p = Path(doc.file_path)
+    if not p.exists():
+        raise HTTPException(404, "Fichier introuvable sur le serveur.")
+    if doc.mime_type == "application/pdf":
+        text = extract_text(p)["text"]
+    elif doc.mime_type == "text/plain":
+        text = p.read_text(encoding="utf-8", errors="ignore")
+    else:
+        try:
+            import docx; text = "\n".join(par.text for par in docx.Document(str(p)).paragraphs)
+        except Exception:
+            text = ""
+    if not text or len(text.strip()) < 50:
+        raise HTTPException(422, "Impossible d'extraire un texte exploitable de ce document.")
+
+    loop = asyncio.get_event_loop()
+    # Grounding : on cherche dans le corpus travail les dispositions typiques
+    # d'un contrat de travail, pour ancrer l'audit sur des articles réels.
+    # user_id=None → uniquement les textes officiels partagés, jamais les uploads
+    # privés (le contrat audité ne doit pas se citer lui-même comme référence).
+    chunks, _, _, _ = await loop.run_in_executor(
+        None, lambda: retrieve(query="obligations clauses contrat de travail salarié employeur période d'essai préavis", top_k=6, forced_domains=["travail"], user_id=None)
+    )
+    system_prompt, user_message = build_audit_prompt(text, chunks)
+    try:
+        report = await loop.run_in_executor(None, lambda: generate(system_prompt, user_message))
+    except Exception as e:
+        from loguru import logger
+        logger.error(f"Erreur audit contrat : {e}")
+        raise HTTPException(503, "Le service d'analyse est momentanément indisponible. Réessayez.")
+    return {"document_id": doc.id, "filename": doc.original_filename, "report": report, "citations": format_citations(chunks)}
+
 @router.delete("/{doc_id}")
 async def delete_doc(doc_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
     doc = db.query(UserDocument).filter(UserDocument.id==doc_id, UserDocument.user_id==current_user.id).first()

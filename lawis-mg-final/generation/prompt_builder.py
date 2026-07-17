@@ -81,6 +81,43 @@ def build_prompt(query: str, retrieved_chunks: list[dict], user_role: str = "par
     user_msg = f"{history_section}TEXTES JURIDIQUES :\n\n{context}\n\n---\n\nQUESTION : {query}\n\nCite le nom réel de chaque source utilisée, directement dans la phrase (jamais un numéro)."
     return system, user_msg
 
+AUDIT_MAX_CONTRACT_CHARS = 6000  # borne le contrat injecté pour rester dans le budget de contexte
+
+def _context_from_chunks(retrieved_chunks: list[dict]) -> str:
+    parts = []
+    for c in retrieved_chunks:
+        meta = c.get("metadata", {})
+        source_name = _clean_source_name(meta.get("filename"))
+        page_tag = f", p. {meta.get('page')}" if meta.get("page") else ""
+        parts.append(f"« {source_name} »{page_tag}\n{c['text']}")
+    return "\n\n---\n\n".join(parts)
+
+def build_audit_prompt(contract_text: str, retrieved_chunks: list[dict]) -> tuple[str, str]:
+    """Prompt d'audit d'un contrat au regard du droit du travail marocain,
+    ancré sur les passages de loi récupérés (grounding RAG). Renvoie
+    (system_prompt, user_message)."""
+    system = (
+        f"{CONTEXT_PREAMBLE}\n\n"
+        "Tu es un juriste spécialisé en droit du travail marocain. On te soumet un contrat à auditer. "
+        "Analyse-le UNIQUEMENT à la lumière des textes juridiques de référence fournis et du contrat lui-même ; "
+        "n'invente aucune règle absente des sources.\n"
+        "Structure ta réponse avec exactement ces sections Markdown :\n"
+        "## Type de document\n(nature du contrat, parties, objet — d'après le contrat)\n"
+        "## Points de conformité\n(éléments présents et conformes ; cite l'article applicable quand une source le confirme)\n"
+        "## Risques et clauses problématiques\n(clauses ambiguës, déséquilibrées ou potentiellement non conformes, avec l'article concerné)\n"
+        "## Clauses manquantes recommandées\n(clauses usuelles ou obligatoires absentes du contrat)\n\n"
+        "Cite tes sources par leur nom réel entre guillemets (jamais un numéro). "
+        "Si un point ne peut être vérifié faute de texte fourni, dis-le explicitement plutôt que d'affirmer."
+    )
+    context = _context_from_chunks(retrieved_chunks)
+    contract = contract_text.strip()[:AUDIT_MAX_CONTRACT_CHARS]
+    user_msg = (
+        f"TEXTES JURIDIQUES DE RÉFÉRENCE :\n\n{context}\n\n---\n\n"
+        f"CONTRAT À AUDITER :\n\n{contract}\n\n---\n\n"
+        "Produis l'audit structuré selon les sections demandées."
+    )
+    return system, user_msg
+
 def format_citations(chunks: list[dict]) -> list[dict]:
     return [{
         "index": i+1,

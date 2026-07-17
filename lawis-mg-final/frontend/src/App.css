@@ -225,6 +225,24 @@ code { font-family: var(--font-mono); background: var(--bg); padding: 2px 6px; b
 .doc-status { display: flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
 .doc-delete { color: var(--text-muted); padding: 5px; border-radius: 5px; }
 .doc-delete:hover { background: #FEE2E2; color: var(--red); }
+.doc-audit { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--navy); border: 1px solid var(--gold); background: var(--gold-light); padding: 5px 11px; border-radius: 16px; transition: all .15s; white-space: nowrap; }
+.doc-audit:hover:not(:disabled) { background: var(--gold); color: #fff; }
+.doc-audit:disabled { opacity: .6; cursor: not-allowed; }
+.audit-panel { margin-top: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; box-shadow: var(--shadow); }
+.audit-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.audit-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: var(--navy); }
+.audit-close { color: var(--text-muted); padding: 4px; border-radius: 6px; }
+.audit-close:hover { background: var(--bg); color: var(--text-primary); }
+.audit-report { font-size: 14px; line-height: 1.7; color: var(--text-primary); }
+.audit-report h2 { font-size: 15px; font-weight: 700; color: var(--navy); margin: 16px 0 6px; }
+.audit-report h2:first-child { margin-top: 0; }
+.audit-report ul { margin: 4px 0 8px 18px; }
+.audit-report li { margin-bottom: 4px; }
+.audit-report p { margin-bottom: 8px; }
+.audit-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.audit-sources-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.audit-source-chip { font-size: 11.5px; padding: 3px 9px; background: var(--gold-light); color: var(--gold-dark); border-radius: 12px; }
+.audit-disclaimer { margin-top: 14px; font-size: 11.5px; color: var(--text-muted); font-style: italic; }
 .compare-container, .reference-container { max-width: 1000px; }
 .compare-header, .reference-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .compare-header h2, .reference-header h2 { font-size: 20px; font-weight: 700; color: var(--navy); }

@@ -140,5 +140,6 @@ export const calculatorService = {
 export const documentService = {
   list: () => api.get("/documents/"),
   upload: (fd) => api.post("/documents/upload", fd, { headers: { "Content-Type": "multipart/form-data" } }),
+  audit: (id) => api.post(`/documents/${id}/audit`, {}, { timeout: 90000 }),
   delete: (id) => api.delete(`/documents/${id}`),
 };
