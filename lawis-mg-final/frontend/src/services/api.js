@@ -124,6 +124,7 @@ export const searchService = {
 export const watchService = {
   status: () => api.get("/watch/status"),
   trigger: () => api.post("/watch/trigger"),
+  recentTexts: () => api.get("/search/recent-texts"),
 };
 
 export const compareService = {

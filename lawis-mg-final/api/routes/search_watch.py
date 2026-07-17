@@ -30,6 +30,15 @@ async def corpus_stats():
     stats = get_corpus_stats()
     return CorpusStats(stats=stats, total_chunks=sum(stats.values()))
 
+@search_router.get("/recent-texts")
+async def recent_texts(db: Session = Depends(get_db)):
+    """Derniers textes intégrés au corpus (public) — alimente le fil d'actualité
+    de la page d'accueil. Reflète les ajouts réels, pas des données inventées."""
+    from api.repositories.snapshot_repo import list_recent
+    from generation.prompt_builder import _clean_source_name
+    rows = list_recent(db, limit=8)
+    return [{"filename": _clean_source_name(r.filename), "domain": r.domain, "created_at": r.created_at.isoformat()} for r in rows]
+
 @watch_router.get("/status", response_model=WatchStatus)
 async def watch_status(current_user: CurrentUser):
     state_file = LOGS_DIR / "watch_state.json"

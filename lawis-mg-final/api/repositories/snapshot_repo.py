@@ -27,3 +27,9 @@ def list_snapshots(db: Session, domain: str) -> list[DocumentSnapshot]:
 
 def get_snapshot(db: Session, snapshot_id: str) -> DocumentSnapshot | None:
     return db.query(DocumentSnapshot).filter(DocumentSnapshot.id == snapshot_id).first()
+
+
+def list_recent(db: Session, limit: int = 8) -> list[DocumentSnapshot]:
+    """Derniers textes intégrés, tous domaines confondus (pour le fil d'actualité
+    de la page d'accueil — reflète les ajouts réels au corpus)."""
+    return db.query(DocumentSnapshot).order_by(desc(DocumentSnapshot.created_at)).limit(limit).all()

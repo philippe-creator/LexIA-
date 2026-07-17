@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Scale, Search, GitCompare, Calculator, Upload, MessageSquare, CheckCircle2, ArrowRight, Send, Loader2, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import api, { chatService } from "../services/api";
+import api, { chatService, watchService } from "../services/api";
+
+const DOMAIN_SHORT = { travail: "Travail", fiscal: "Fiscal", societes: "Sociétés", donnees_personnelles: "Données perso.", jurisprudence: "Jurisprudence", divers: "Divers" };
 
 const DEMO_EXAMPLES = [
   "Quel est le délai de préavis en cas de démission ?",
@@ -28,6 +30,7 @@ const STEPS = [
 
 export default function LandingPage() {
   const [stats, setStats] = useState(null);
+  const [recent, setRecent] = useState([]);
   const [demoQuery, setDemoQuery] = useState("");
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResult, setDemoResult] = useState(null);
@@ -35,6 +38,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     api.get("/health").then((r) => setStats(r.data)).catch(() => {});
+    watchService.recentTexts().then((r) => setRecent(r.data || [])).catch(() => {});
   }, []);
 
   const runDemo = async (q) => {
@@ -67,6 +71,20 @@ export default function LandingPage() {
           <Link to="/login" className="landing-btn-primary">Créer un compte</Link>
         </div>
       </header>
+
+      {recent.length > 0 && (
+        <div className="landing-ticker">
+          <span className="landing-ticker-label">Derniers textes intégrés</span>
+          <div className="landing-ticker-track">
+            {recent.map((t, i) => (
+              <span key={i} className="landing-ticker-item">
+                <span className="landing-ticker-dom">{DOMAIN_SHORT[t.domain] || t.domain}</span>
+                {t.filename}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <section className="landing-hero">
         <span className="landing-badge">Plateforme multi-RAG · Droit marocain</span>
