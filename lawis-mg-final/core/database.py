@@ -15,7 +15,23 @@ def get_db():
     try: yield db
     finally: db.close()
 
-def init_db(): Base.metadata.create_all(bind=engine)
+def init_db():
+    Base.metadata.create_all(bind=engine)
+    _run_lightweight_migrations()
+
+def _run_lightweight_migrations():
+    """Migrations minimalistes idempotentes pour les colonnes ajoutées après la
+    création initiale d'une table (pas d'Alembic sur ce projet). `create_all`
+    ne modifie jamais une table existante — on ajoute donc les colonnes
+    manquantes à la main. À remplacer par Alembic si le schéma se complexifie."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    if "messages" not in inspector.get_table_names():
+        return
+    existing = {c["name"] for c in inspector.get_columns("messages")}
+    if "feedback" not in existing:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE messages ADD COLUMN feedback VARCHAR(4)"))
 
 class User(Base):
     __tablename__ = "users"
@@ -71,6 +87,8 @@ class Message(Base):
     domains_searched = Column(JSON, default=list)
     confidence_score = Column(Float, nullable=True)
     retrieval_method = Column(String(50), nullable=True)
+    # Retour utilisateur sur une réponse de l'assistant : "up" / "down" / None.
+    feedback = Column(String(4), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     conversation = relationship("Conversation", back_populates="messages")
 

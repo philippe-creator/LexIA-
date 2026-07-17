@@ -22,6 +22,7 @@ export function useChat() {
       setMessages(res.data.messages.map((m) => ({
         id: m.id, role: m.role, content: m.content,
         citations: m.citations || [], confidence_score: m.confidence_score,
+        confidence_label: m.confidence_label, feedback: m.feedback || null,
         created_at: m.created_at,
       })));
     } catch { setError("Impossible de charger la conversation."); }
@@ -68,6 +69,22 @@ export function useChat() {
     } finally { setLoading(false); }
   }, [activeConvId, loading, loadConversations]);
 
+  const sendFeedback = useCallback(async (messageId, feedback) => {
+    // Bascule optimiste : recliquer sur le même pouce annule (null). On calcule
+    // `next` AVANT setMessages (pas dans l'updater) : un updater doit être pur,
+    // et React StrictMode le double-invoque — y calculer une valeur à envoyer au
+    // serveur donnait un résultat corrompu au 2e passage.
+    const current = messages.find((m) => m.id === messageId)?.feedback ?? null;
+    const next = current === feedback ? null : feedback;
+    setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, feedback: next } : m)));
+    try {
+      await chatService.sendFeedback(messageId, next);
+    } catch {
+      // En cas d'échec réseau, on recharge la conversation pour resynchroniser l'état.
+      if (activeConvId) loadConversation(activeConvId);
+    }
+  }, [messages, activeConvId, loadConversation]);
+
   const deleteConversation = useCallback(async (convId) => {
     try {
       await chatService.deleteConversation(convId);
@@ -76,5 +93,5 @@ export function useChat() {
     } catch { setError("Impossible de supprimer."); }
   }, [activeConvId, startNewConversation]);
 
-  return { messages, conversations, activeConvId, loading, error, sendMessage, loadConversations, loadConversation, startNewConversation, deleteConversation, setError };
+  return { messages, conversations, activeConvId, loading, error, sendMessage, sendFeedback, loadConversations, loadConversation, startNewConversation, deleteConversation, setError };
 }

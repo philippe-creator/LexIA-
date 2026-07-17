@@ -7,7 +7,7 @@ from loguru import logger
 from core.database import get_db, SessionLocal, Conversation
 from api.core.dependencies import CurrentUser
 from api.repositories.conversation_repo import ConversationRepository
-from api.schemas.chat import ChatRequest, ChatResponse, Citation
+from api.schemas.chat import ChatRequest, ChatResponse, Citation, FeedbackRequest
 from retrieval.hybrid_retriever import retrieve
 from retrieval.reranker import confidence_label_for_score
 from core.domains import DOMAINS
@@ -146,9 +146,16 @@ async def get_conversation(conv_id: str, current_user: CurrentUser, db: Session 
     if not conv: raise HTTPException(404, "Conversation introuvable.")
     # confidence_label n'est pas persisté (seul le score l'est) — on le redérive
     # du score enregistré, avec les mêmes seuils que la génération live.
-    return {"id":conv.id,"title":conv.title,"domain":conv.domain,"created_at":conv.created_at.isoformat(),"messages":[{"id":m.id,"role":m.role,"content":m.content,"citations":m.citations or [],"confidence_score":m.confidence_score,"confidence_label":confidence_label_for_score(m.confidence_score) if m.confidence_score is not None else None,"created_at":m.created_at.isoformat()} for m in conv.messages]}
+    return {"id":conv.id,"title":conv.title,"domain":conv.domain,"created_at":conv.created_at.isoformat(),"messages":[{"id":m.id,"role":m.role,"content":m.content,"citations":m.citations or [],"confidence_score":m.confidence_score,"confidence_label":confidence_label_for_score(m.confidence_score) if m.confidence_score is not None else None,"feedback":m.feedback,"created_at":m.created_at.isoformat()} for m in conv.messages]}
 
 @router.delete("/conversations/{conv_id}")
 async def delete_conversation(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
     if not ConversationRepository(db).delete(conv_id, current_user.id): raise HTTPException(404, "Conversation introuvable.")
     return {"message": "Supprimée."}
+
+@router.post("/messages/{message_id}/feedback")
+async def set_message_feedback(message_id: str, request: FeedbackRequest, current_user: CurrentUser, db: Session = Depends(get_db)):
+    msg = ConversationRepository(db).set_feedback(message_id, current_user.id, request.feedback)
+    if not msg:
+        raise HTTPException(404, "Message introuvable.")
+    return {"message_id": msg.id, "feedback": msg.feedback}

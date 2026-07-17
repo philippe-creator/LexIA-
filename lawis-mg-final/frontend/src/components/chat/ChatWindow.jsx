@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
+import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../hooks/useChat";
 import { useAuth } from "../../contexts/AuthContext";
@@ -74,7 +74,7 @@ function SourcePanel({ citations, onClose }) {
   );
 }
 
-function MessageBubble({ msg, onCitationClick, onSuggestionClick }) {
+function MessageBubble({ msg, onCitationClick, onSuggestionClick, onFeedback }) {
   const [showSugg, setShowSugg] = useState(false);
   if (msg.role === "user") return (
     <div className="msg-row user"><div className="msg-bubble user"><p>{msg.content}</p></div></div>
@@ -86,6 +86,10 @@ function MessageBubble({ msg, onCitationClick, onSuggestionClick }) {
   // on ne l'affiche pas (les questions sont rendues en chips plus bas).
   const displayContent = (msg.content || "").split(/\**\s*QUESTIONS SUGGÉRÉES/i)[0].replace(/[\s*#>-]+$/, "");
   const isTyping = msg.streaming && !displayContent;
+  // Le feedback n'a de sens que sur un message assistant réellement persisté :
+  // les id temporaires (placeholder de streaming / message optimiste) n'existent
+  // pas encore côté serveur, donc pas de POST /feedback possible.
+  const canFeedback = !msg.streaming && msg.id && !String(msg.id).startsWith("stream-") && !String(msg.id).startsWith("tmp-");
   if (isTyping) return (
     <div className="msg-row assistant">
       <div className="msg-bubble assistant loading-bubble"><Loader2 size={16} className="spin"/><span>Recherche en cours...</span></div>
@@ -106,6 +110,12 @@ function MessageBubble({ msg, onCitationClick, onSuggestionClick }) {
             <button className="citations-btn" onClick={() => onCitationClick(msg.citations)}>
               <ExternalLink size={12}/> {msg.citations.length} source(s)
             </button>
+          )}
+          {canFeedback && (
+            <div className="feedback-group" title="Cette réponse vous a-t-elle été utile ?">
+              <button className={`feedback-btn ${msg.feedback === "up" ? "active up" : ""}`} onClick={() => onFeedback(msg.id, "up")} aria-label="Réponse utile"><ThumbsUp size={13}/></button>
+              <button className={`feedback-btn ${msg.feedback === "down" ? "active down" : ""}`} onClick={() => onFeedback(msg.id, "down")} aria-label="Réponse non utile"><ThumbsDown size={13}/></button>
+            </div>
           )}
         </div>}
         {msg.suggested_queries?.length > 0 && (
@@ -131,7 +141,7 @@ function MessageBubble({ msg, onCitationClick, onSuggestionClick }) {
 
 export default function ChatWindow() {
   const { user } = useAuth();
-  const { messages, conversations, activeConvId, loading, error, sendMessage, loadConversations, loadConversation, startNewConversation, deleteConversation, setError } = useChat();
+  const { messages, conversations, activeConvId, loading, error, sendMessage, sendFeedback, loadConversations, loadConversation, startNewConversation, deleteConversation, setError } = useChat();
   const [input, setInput] = useState("");
   const [domain, setDomain] = useState(null);
   const [docType, setDocType] = useState(null);
@@ -208,7 +218,7 @@ export default function ChatWindow() {
             </div>
           )}
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} onCitationClick={setActiveCitations} onSuggestionClick={(q) => { setInput(q); inputRef.current?.focus(); }} />
+            <MessageBubble key={msg.id} msg={msg} onCitationClick={setActiveCitations} onSuggestionClick={(q) => { setInput(q); inputRef.current?.focus(); }} onFeedback={sendFeedback} />
           ))}
           {error && (
             <div className="chat-error"><AlertCircle size={15}/> {error}<button onClick={() => setError(null)}>✕</button></div>

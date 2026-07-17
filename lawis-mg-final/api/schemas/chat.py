@@ -7,6 +7,16 @@ def safe_url(url: Optional[str]) -> Optional[str]:
     if not (url.startswith("http://") or url.startswith("https://")): return None
     return url
 
+class FeedbackRequest(BaseModel):
+    feedback: Optional[str] = None  # "up" | "down" | None (annule le retour)
+
+    @field_validator("feedback")
+    @classmethod
+    def _validate_feedback(cls, v):
+        if v not in (None, "up", "down"):
+            raise ValueError("feedback doit être 'up', 'down' ou null")
+        return v
+
 class ChatRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=2000)
     conversation_id: Optional[str] = None

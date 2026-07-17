@@ -34,6 +34,22 @@ class ConversationRepository:
     def get_history(self, conv_id: str, limit: int = 10) -> list:
         return self.db.query(Message).filter(Message.conversation_id == conv_id).order_by(Message.created_at.desc()).limit(limit).all()[::-1]
 
+    def set_feedback(self, message_id: str, user_id: str, feedback: Optional[str]) -> Optional[Message]:
+        """Enregistre le retour ("up"/"down"/None) sur une réponse de l'assistant,
+        après vérification que le message appartient bien à une conversation de
+        l'utilisateur (isolation : on ne peut pas noter le message d'autrui)."""
+        msg = (
+            self.db.query(Message)
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .filter(Message.id == message_id, Conversation.user_id == user_id, Message.role == "assistant")
+            .first()
+        )
+        if not msg:
+            return None
+        msg.feedback = feedback
+        self.db.commit(); self.db.refresh(msg)
+        return msg
+
     def delete(self, conv_id: str, user_id: str) -> bool:
         conv = self.get(conv_id, user_id)
         if not conv: return False

@@ -58,6 +58,7 @@ export const chatService = {
   listConversations: (limit = 30) => api.get(`/chat/conversations?limit=${limit}`),
   getConversation: (id) => api.get(`/chat/conversations/${id}`),
   deleteConversation: (id) => api.delete(`/chat/conversations/${id}`),
+  sendFeedback: (messageId, feedback) => api.post(`/chat/messages/${messageId}/feedback`, { feedback }),
 
   // Streaming SSE via fetch (axios ne gère pas les flux ReadableStream).
   // handlers : { onMeta, onToken, onDone, onError }
