@@ -55,6 +55,7 @@ export const authService = {
 
 export const chatService = {
   send: (d) => api.post("/chat/", d),
+  demo: (query) => api.post("/chat/demo", { query }),
   listConversations: (limit = 30) => api.get(`/chat/conversations?limit=${limit}`),
   getConversation: (id) => api.get(`/chat/conversations/${id}`),
   deleteConversation: (id) => api.delete(`/chat/conversations/${id}`),

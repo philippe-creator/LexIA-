@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Scale, Search, GitCompare, Calculator, Upload, MessageSquare, CheckCircle2, ArrowRight } from "lucide-react";
-import api from "../services/api";
+import { Scale, Search, GitCompare, Calculator, Upload, MessageSquare, CheckCircle2, ArrowRight, Send, Loader2, ExternalLink } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import api, { chatService } from "../services/api";
+
+const DEMO_EXAMPLES = [
+  "Quel est le délai de préavis en cas de démission ?",
+  "Quelles obligations impose la loi 09-08 ?",
+  "Quelles sanctions si un employeur n'immatricule pas ses salariés ?",
+];
 
 const DOMAIN_LABELS = { travail: "Droit du travail", fiscal: "Droit fiscal", societes: "Droit des sociétés", donnees_personnelles: "Données personnelles", jurisprudence: "Jurisprudence", divers: "Divers" };
 
@@ -21,10 +28,27 @@ const STEPS = [
 
 export default function LandingPage() {
   const [stats, setStats] = useState(null);
+  const [demoQuery, setDemoQuery] = useState("");
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoResult, setDemoResult] = useState(null);
+  const [demoError, setDemoError] = useState(null);
 
   useEffect(() => {
     api.get("/health").then((r) => setStats(r.data)).catch(() => {});
   }, []);
+
+  const runDemo = async (q) => {
+    const query = (q || demoQuery).trim();
+    if (!query || demoLoading) return;
+    if (q) setDemoQuery(q);
+    setDemoLoading(true); setDemoError(null); setDemoResult(null);
+    try {
+      const res = await chatService.demo(query);
+      setDemoResult(res.data);
+    } catch (e) {
+      setDemoError(e.response?.data?.detail || "Le service est momentanément indisponible. Réessayez.");
+    } finally { setDemoLoading(false); }
+  };
 
   const domainsWithData = stats ? Object.entries(stats.corpus_stats || {}).filter(([, n]) => n > 0) : [];
 
@@ -54,7 +78,52 @@ export default function LandingPage() {
           des données personnelles au Maroc.
         </p>
         <div className="landing-hero-cta">
-          <Link to="/login" className="landing-btn-primary landing-btn-lg">Essayer maintenant <ArrowRight size={16}/></Link>
+          <Link to="/login" className="landing-btn-primary landing-btn-lg">Créer un compte gratuit <ArrowRight size={16}/></Link>
+        </div>
+
+        <div className="demo-box">
+          <div className="demo-box-label"><MessageSquare size={14}/> Essayez sans compte</div>
+          <div className="demo-input-row">
+            <input
+              className="demo-input"
+              value={demoQuery}
+              onChange={(e) => setDemoQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") runDemo(); }}
+              placeholder="Posez une question de droit marocain…"
+              maxLength={500}
+              disabled={demoLoading}
+            />
+            <button className="demo-send" onClick={() => runDemo()} disabled={demoLoading || !demoQuery.trim()}>
+              {demoLoading ? <Loader2 size={16} className="spin"/> : <Send size={16}/>}
+            </button>
+          </div>
+          {!demoResult && !demoLoading && !demoError && (
+            <div className="demo-examples">
+              {DEMO_EXAMPLES.map((ex) => (
+                <button key={ex} className="demo-example" onClick={() => runDemo(ex)}>{ex}</button>
+              ))}
+            </div>
+          )}
+          {demoLoading && <div className="demo-loading"><Loader2 size={15} className="spin"/> Recherche dans les textes officiels…</div>}
+          {demoError && <div className="demo-error">{demoError}</div>}
+          {demoResult && (
+            <div className="demo-answer">
+              <div className="demo-answer-text"><ReactMarkdown>{demoResult.answer}</ReactMarkdown></div>
+              {demoResult.citations?.length > 0 && (
+                <div className="demo-sources">
+                  <span className="demo-sources-label"><ExternalLink size={12}/> Sources :</span>
+                  {demoResult.citations.slice(0, 3).map((c, i) => (
+                    <span key={i} className="demo-source-chip">{(c.filename || "document").replace(/\.(pdf|docx?|txt)$/i, "")}{c.page ? ` — p. ${c.page}` : ""}</span>
+                  ))}
+                </div>
+              )}
+              <div className="demo-footer">
+                {typeof demoResult.remaining === "number" && <span className="demo-remaining">{demoResult.remaining} question(s) de démo restante(s) aujourd'hui</span>}
+                <Link to="/login" className="demo-cta-link">Créer un compte pour continuer <ArrowRight size={13}/></Link>
+              </div>
+            </div>
+          )}
+          <p className="demo-disclaimer">Réponse informative fondée sur les textes officiels indexés — ne constitue pas un avis juridique professionnel.</p>
         </div>
 
         {stats && (

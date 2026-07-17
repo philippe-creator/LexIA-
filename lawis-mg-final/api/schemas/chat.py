@@ -7,6 +7,9 @@ def safe_url(url: Optional[str]) -> Optional[str]:
     if not (url.startswith("http://") or url.startswith("https://")): return None
     return url
 
+class DemoRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=500)
+
 class FeedbackRequest(BaseModel):
     feedback: Optional[str] = None  # "up" | "down" | None (annule le retour)
 

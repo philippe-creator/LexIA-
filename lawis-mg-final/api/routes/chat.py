@@ -1,13 +1,14 @@
 import json
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from loguru import logger
 from core.database import get_db, SessionLocal, Conversation
 from api.core.dependencies import CurrentUser
 from api.repositories.conversation_repo import ConversationRepository
-from api.schemas.chat import ChatRequest, ChatResponse, Citation, FeedbackRequest
+from api.schemas.chat import ChatRequest, ChatResponse, Citation, FeedbackRequest, DemoRequest
 from retrieval.hybrid_retriever import retrieve
 from retrieval.reranker import confidence_label_for_score
 from core.domains import DOMAINS
@@ -30,6 +31,50 @@ _NO_CONTEXT_ANSWER = (
 
 def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+# Démo publique (sans compte) : quota strict par IP et par jour, en plus du
+# rate-limit global. But : vitrine sur la page d'accueil (cf. Adala/Al Mohami)
+# sans exposer l'API LLM à un abus anonyme illimité.
+_DEMO_LIMIT_PER_DAY = 5
+_demo_usage: dict[str, tuple[str, int]] = {}  # ip -> (jour ISO, nb utilisé)
+
+def _demo_consume_quota(ip: str) -> int:
+    """Consomme une question de démo pour cette IP et retourne le nombre restant
+    (>= 0). Retourne -1 sans rien consommer si le quota du jour est épuisé."""
+    today = date.today().isoformat()
+    day, count = _demo_usage.get(ip, (today, 0))
+    if day != today:
+        count = 0  # réinitialisation quotidienne
+    if count >= _DEMO_LIMIT_PER_DAY:
+        _demo_usage[ip] = (today, count)
+        return -1
+    count += 1
+    _demo_usage[ip] = (today, count)
+    return _DEMO_LIMIT_PER_DAY - count
+
+@router.post("/demo")
+async def chat_demo(request: DemoRequest, http_request: Request):
+    """Chat de démonstration public (sans authentification, sans persistance).
+    Réutilise le même pipeline retrieval + génération que /chat/, mais en profil
+    'particulier', sans historique, sans filtres, et avec un quota quotidien."""
+    ip = http_request.client.host if http_request.client else "unknown"
+    remaining = _demo_consume_quota(ip)
+    if remaining < 0:
+        raise HTTPException(429, f"Limite de {_DEMO_LIMIT_PER_DAY} questions par jour atteinte pour la démo. Créez un compte gratuit pour continuer sans limite.")
+    loop = asyncio.get_event_loop()
+    chunks, conf_score, conf_label, domains_searched = await loop.run_in_executor(
+        None, lambda: retrieve(query=request.query, top_k=4, user_id=None)
+    )
+    if not chunks:
+        return {"answer": _NO_CONTEXT_ANSWER, "citations": [], "confidence_label": "insuffisant", "domains_searched": domains_searched, "remaining": remaining}
+    system_prompt, user_message = build_prompt(request.query, chunks, user_role="particulier")
+    try:
+        raw = await loop.run_in_executor(None, lambda: generate(system_prompt, user_message))
+    except Exception as e:
+        logger.error(f"Erreur démo : {e}")
+        raise HTTPException(503, "Le service de génération est momentanément indisponible. Réessayez.")
+    answer, _ = extract_suggested_queries(raw)
+    return {"answer": answer, "citations": format_citations(chunks), "confidence_label": conf_label, "domains_searched": domains_searched, "remaining": remaining}
 
 def _validate_filters(request: ChatRequest):
     if request.domain and request.domain not in DOMAINS:
