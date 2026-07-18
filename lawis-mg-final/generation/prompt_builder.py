@@ -49,9 +49,24 @@ RÈGLES :
    - Précise ce que les textes fournis couvrent réellement, pour que l'utilisateur comprenne le périmètre de ce que tu as pu vérifier.
    - Si la question est large ou ambiguë, propose 1 à 2 reformulations plus précises qui permettraient une réponse exploitable.
    - Ne laisse JAMAIS la réponse en impasse : oriente toujours vers une suite possible (reformulation, domaine à préciser, ou consultation d'un professionnel/portail officiel si la question sort du champ couvert par les sources).
-5. Réponds en français sauf si la question est posée en arabe.
+5. Rédige ta réponse dans la langue imposée par la CONSIGNE DE LANGUE ci-dessous (elle prime sur la langue de la question).
 6. Termine TOUJOURS par 2 à 3 questions de suivi pertinentes, au format : "QUESTIONS SUGGÉRÉES: [Q1] | [Q2] | [Q3]"
 """
+
+# Consigne de langue explicite : le modèle ne suit pas de façon fiable une règle
+# du type « réponds en arabe si la question est en arabe » (observé : il répond
+# en français malgré une question arabe). On impose donc la langue de sortie.
+_LANG_DIRECTIVE = {
+    "fr": "CONSIGNE DE LANGUE : rédige TOUTE ta réponse en français.",
+    "ar": (
+        "CONSIGNE DE LANGUE : rédige TOUTE ta réponse en arabe (اللغة العربية), y compris les titres de "
+        "sections et les questions suggérées. Les textes de référence sont en français : traduis fidèlement "
+        "en arabe l'information utile, mais conserve les noms officiels des lois et les numéros d'articles/pages "
+        "tels quels (ex. « القانون 65-99, المادة 52 »)."
+    ),
+}
+def _lang_directive(lang: str) -> str:
+    return _LANG_DIRECTIVE.get((lang or "fr").lower(), _LANG_DIRECTIVE["fr"])
 
 def _clean_source_name(filename: str) -> str:
     """Nom de source lisible à partir du nom de fichier — évite d'exposer un
@@ -63,9 +78,9 @@ def _clean_source_name(filename: str) -> str:
     name = re.sub(r"[_\-]+", " ", name).strip()
     return name or filename
 
-def build_prompt(query: str, retrieved_chunks: list[dict], user_role: str = "particulier", conversation_history: list[dict] = None) -> tuple[str, str]:
+def build_prompt(query: str, retrieved_chunks: list[dict], user_role: str = "particulier", conversation_history: list[dict] = None, lang: str = "fr") -> tuple[str, str]:
     role = ROLE_INSTRUCTIONS.get(user_role, ROLE_INSTRUCTIONS["particulier"])
-    system = f"{CONTEXT_PREAMBLE}\n\n{role['persona']}\n{BASE_RULES}\nSTRUCTURE DE RÉPONSE (uniquement pour les questions substantielles — voir règle 3) :\n{role['structure']}"
+    system = f"{CONTEXT_PREAMBLE}\n\n{role['persona']}\n{BASE_RULES}\nSTRUCTURE DE RÉPONSE (uniquement pour les questions substantielles — voir règle 3) :\n{role['structure']}\n\n{_lang_directive(lang)}"
     context_parts = []
     for c in retrieved_chunks:
         meta = c.get("metadata", {})

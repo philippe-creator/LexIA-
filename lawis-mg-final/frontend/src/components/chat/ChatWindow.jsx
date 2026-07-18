@@ -146,6 +146,7 @@ export default function ChatWindow() {
   const [domain, setDomain] = useState(null);
   const [docType, setDocType] = useState(null);
   const [year, setYear] = useState(null);
+  const [lang, setLang] = useState("fr");
   const [activeCitations, setActiveCitations] = useState([]);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -157,7 +158,7 @@ export default function ChatWindow() {
     const query = q || input.trim();
     if (!query || loading) return;
     setInput("");
-    await sendMessage({ query, domain, docType, year });
+    await sendMessage({ query, domain, docType, year, lang });
   };
 
   const handleKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } };
@@ -194,6 +195,10 @@ export default function ChatWindow() {
             ))}
           </div>
           <div className="filter-selects">
+            <div className="lang-toggle" title="Langue de réponse">
+              <button className={`lang-btn ${lang === "fr" ? "active" : ""}`} onClick={() => setLang("fr")}>FR</button>
+              <button className={`lang-btn ${lang === "ar" ? "active" : ""}`} onClick={() => setLang("ar")}>ع</button>
+            </div>
             <select value={docType || ""} onChange={(e) => setDocType(e.target.value || null)} className="filter-select" title="Filtrer par type de document">
               {DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -204,7 +209,7 @@ export default function ChatWindow() {
           </div>
         </div>
 
-        <div className="messages-area">
+        <div className="messages-area" dir={lang === "ar" ? "rtl" : "ltr"}>
           {messages.length === 0 && (
             <div className="chat-welcome">
               <div className="welcome-icon">⚖️</div>
@@ -228,7 +233,7 @@ export default function ChatWindow() {
 
         <div className="chat-input-area">
           <div className="chat-input-wrapper">
-            <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey} placeholder="Posez votre question juridique..." rows={1} className="chat-textarea" disabled={loading}/>
+            <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey} dir={lang === "ar" ? "rtl" : "ltr"} placeholder={lang === "ar" ? "اطرح سؤالك القانوني..." : "Posez votre question juridique..."} rows={1} className="chat-textarea" disabled={loading}/>
             <button onClick={() => handleSend()} disabled={loading || !input.trim()} className="chat-send-btn">
               {loading ? <Loader2 size={17} className="spin"/> : <Send size={17}/>}
             </button>

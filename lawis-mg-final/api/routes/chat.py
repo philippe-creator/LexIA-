@@ -98,7 +98,7 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = De
             msg = repo.add_message(conv.id, "assistant", answer, citations=[], domains_searched=domains_searched, confidence_score=0.0)
             return ChatResponse(answer=answer, citations=[], domains_searched=domains_searched, query=request.query, conversation_id=conv.id, message_id=msg.id, confidence_score=0.0, confidence_label="insuffisant")
         role = current_user.role if request.adapt_to_profile else "particulier"
-        system_prompt, user_message = build_prompt(request.query, chunks, user_role=role, conversation_history=history)
+        system_prompt, user_message = build_prompt(request.query, chunks, user_role=role, conversation_history=history, lang=request.lang)
         raw = generate(system_prompt, user_message)
         answer, suggested = extract_suggested_queries(raw)
         raw_citations = format_citations(chunks)
@@ -148,7 +148,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
         return StreamingResponse(empty_stream(), media_type="text/event-stream", headers=_SSE_HEADERS)
 
     raw_citations = format_citations(chunks)
-    system_prompt, user_message = build_prompt(request.query, chunks, user_role=role, conversation_history=history)
+    system_prompt, user_message = build_prompt(request.query, chunks, user_role=role, conversation_history=history, lang=request.lang)
 
     def event_stream():
         yield _sse({"type": "meta", "conversation_id": conv_id, "citations": raw_citations, "domains_searched": domains_searched, "confidence_score": conf_score, "confidence_label": conf_label, "adapted_for_role": role})

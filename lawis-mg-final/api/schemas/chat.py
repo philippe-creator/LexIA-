@@ -26,8 +26,14 @@ class ChatRequest(BaseModel):
     domain: Optional[str] = None
     doc_type: Optional[str] = None
     year: Optional[int] = None
+    lang: str = "fr"  # langue de réponse : "fr" | "ar"
     top_k: int = Field(5, ge=1, le=10)
     adapt_to_profile: bool = True
+
+    @field_validator("lang")
+    @classmethod
+    def _validate_lang(cls, v):
+        return v if v in ("fr", "ar") else "fr"
 
 class Citation(BaseModel):
     index: int
