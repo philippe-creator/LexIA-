@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown, Mic, Volume2, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../hooks/useChat";
+import { useSpeechToText, useTextToSpeech } from "../../hooks/useVoice";
 import { useAuth } from "../../contexts/AuthContext";
 
 const CONFIDENCE = {
@@ -74,7 +75,7 @@ function SourcePanel({ citations, onClose }) {
   );
 }
 
-function MessageBubble({ msg, onCitationClick, onSuggestionClick, onFeedback }) {
+function MessageBubble({ msg, onCitationClick, onSuggestionClick, onFeedback, onSpeak, speaking, ttsSupported }) {
   const [showSugg, setShowSugg] = useState(false);
   if (msg.role === "user") return (
     <div className="msg-row user"><div className="msg-bubble user"><p>{msg.content}</p></div></div>
@@ -109,6 +110,11 @@ function MessageBubble({ msg, onCitationClick, onSuggestionClick, onFeedback }) 
           {msg.citations?.length > 0 && (
             <button className="citations-btn" onClick={() => onCitationClick(msg.citations)}>
               <ExternalLink size={12}/> {msg.citations.length} source(s)
+            </button>
+          )}
+          {ttsSupported && displayContent && (
+            <button className={`tts-btn ${speaking ? "active" : ""}`} onClick={() => onSpeak(displayContent, msg.id)} aria-label={speaking ? "Arrêter la lecture" : "Écouter la réponse"} title={speaking ? "Arrêter" : "Écouter"}>
+              {speaking ? <Square size={12}/> : <Volume2 size={13}/>}
             </button>
           )}
           {canFeedback && (
@@ -151,12 +157,19 @@ export default function ChatWindow() {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Voix : dictée (la transcription s'ajoute au champ) et lecture à voix haute.
+  const { supported: sttSupported, listening, start: startDictation, stop: stopDictation } =
+    useSpeechToText(lang, (text) => setInput((prev) => (prev ? prev + " " + text : text)));
+  const { supported: ttsSupported, speakingId, speak, cancel: cancelSpeech } = useTextToSpeech();
+  const handleSpeak = (text, id) => { if (speakingId === id) cancelSpeech(); else speak(text, lang, id); };
+
   useEffect(() => { loadConversations(); }, [loadConversations]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
 
   const handleSend = async (q = null) => {
     const query = q || input.trim();
     if (!query || loading) return;
+    if (listening) stopDictation();
     setInput("");
     await sendMessage({ query, domain, docType, year, lang });
   };
@@ -223,7 +236,7 @@ export default function ChatWindow() {
             </div>
           )}
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} onCitationClick={setActiveCitations} onSuggestionClick={(q) => { setInput(q); inputRef.current?.focus(); }} onFeedback={sendFeedback} />
+            <MessageBubble key={msg.id} msg={msg} onCitationClick={setActiveCitations} onSuggestionClick={(q) => { setInput(q); inputRef.current?.focus(); }} onFeedback={sendFeedback} onSpeak={handleSpeak} speaking={speakingId === msg.id} ttsSupported={ttsSupported} />
           ))}
           {error && (
             <div className="chat-error"><AlertCircle size={15}/> {error}<button onClick={() => setError(null)}>✕</button></div>
@@ -234,6 +247,11 @@ export default function ChatWindow() {
         <div className="chat-input-area">
           <div className="chat-input-wrapper">
             <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey} dir={lang === "ar" ? "rtl" : "ltr"} placeholder={lang === "ar" ? "اطرح سؤالك القانوني..." : "Posez votre question juridique..."} rows={1} className="chat-textarea" disabled={loading}/>
+            {sttSupported && (
+              <button onClick={() => (listening ? stopDictation() : startDictation())} disabled={loading} className={`chat-mic-btn ${listening ? "listening" : ""}`} title={listening ? "Arrêter la dictée" : "Dicter la question"} aria-label={listening ? "Arrêter la dictée" : "Dicter la question"}>
+                <Mic size={17}/>
+              </button>
+            )}
             <button onClick={() => handleSend()} disabled={loading || !input.trim()} className="chat-send-btn">
               {loading ? <Loader2 size={17} className="spin"/> : <Send size={17}/>}
             </button>
