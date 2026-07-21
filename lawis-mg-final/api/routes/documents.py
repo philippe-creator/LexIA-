@@ -9,6 +9,18 @@ from core.domains import DOMAINS
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
+
+# Matières qu'un audit de contrat de travail doit couvrir. Chacune fait l'objet
+# d'une recherche distincte : une requête unique et large ramenait des passages
+# tous centrés sur le même thème et manquait des articles décisifs.
+AUDIT_TOPICS = [
+    "durée maximale de la période d'essai et son renouvellement",
+    "délai de préavis en cas de rupture du contrat de travail",
+    "salaire minimum légal et modalités de paiement de la rémunération",
+    "congés payés annuels du salarié",
+    "indemnité de licenciement et rupture abusive du contrat",
+    "durée légale du travail hebdomadaire et heures supplémentaires",
+]
 ALLOWED_MIME = {"application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/html"}
 MIME_EXTENSIONS = {
     "application/pdf": {".pdf"},
@@ -120,13 +132,27 @@ async def audit_document(doc_id: str, current_user: CurrentUser, db: Session = D
         raise HTTPException(422, "Impossible d'extraire un texte exploitable de ce document.")
 
     loop = asyncio.get_event_loop()
-    # Grounding : on cherche dans le corpus travail les dispositions typiques
-    # d'un contrat de travail, pour ancrer l'audit sur des articles réels.
+    # Grounding : on ancre l'audit sur des articles réels du corpus travail.
     # user_id=None → uniquement les textes officiels partagés, jamais les uploads
     # privés (le contrat audité ne doit pas se citer lui-même comme référence).
-    chunks, _, _, _ = await loop.run_in_executor(
-        None, lambda: retrieve(query="obligations clauses contrat de travail salarié employeur période d'essai préavis", top_k=6, forced_domains=["travail"], user_id=None)
-    )
+    #
+    # Une requête unique et large ne convenait pas : les 6 passages retenus se
+    # concentraient sur une même matière et laissaient de côté des articles
+    # décisifs. L'article 14 (durée maximale de la période d'essai) n'était
+    # jamais récupéré, et l'audit concluait à tort qu'une période d'essai de
+    # 6 mois est conforme « faute de durée maximale dans le code ». On interroge
+    # donc chaque matière qu'un audit de contrat doit couvrir.
+    chunks, seen = [], set()
+    for topic in AUDIT_TOPICS:
+        topic_chunks, _, _, _ = await loop.run_in_executor(
+            None, lambda q=topic: retrieve(query=q, top_k=3, forced_domains=["travail"], user_id=None)
+        )
+        for c in topic_chunks:
+            key = (c.get("text") or "")[:120]
+            if key and key not in seen:
+                seen.add(key)
+                chunks.append(c)
+    # Le budget de contexte (tiktoken) élague ensuite si nécessaire.
     system_prompt, user_message = build_audit_prompt(text, chunks)
     try:
         report = await loop.run_in_executor(None, lambda: generate(system_prompt, user_message))
