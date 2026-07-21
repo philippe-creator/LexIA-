@@ -100,3 +100,11 @@ def test_search_and_watch_status():
 
     r = client.get("/watch/status", headers=headers)
     assert r.status_code == 200
+
+
+def test_search_history():
+    # Régression : la route utilisait Message sans l'importer → 500 NameError.
+    headers = _auth_headers()
+    r = client.get("/chat/search-history?q=licenciement", headers=headers)
+    assert r.status_code == 200, r.text
+    assert isinstance(r.json(), list)
