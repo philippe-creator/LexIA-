@@ -90,7 +90,8 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = De
         repo = ConversationRepository(db)
         conv = repo.get_or_create(current_user.id, request.conversation_id, request.query)
         repo.add_message(conv.id, "user", request.query)
-        history = [{"role": m.role, "content": m.content} for m in repo.get_history(conv.id, 8)[:-1]]
+        history, _ = repo.get_history(conv.id, 8)
+        history = [{"role": m.role, "content": m.content} for m in history][:-1]
         domains = [request.domain] if request.domain else None
         chunks, conf_score, conf_label, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year)
         if not chunks:
@@ -127,7 +128,8 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
     repo = ConversationRepository(db)
     conv = repo.get_or_create(current_user.id, request.conversation_id, request.query)
     repo.add_message(conv.id, "user", request.query)
-    history = [{"role": m.role, "content": m.content} for m in repo.get_history(conv.id, 8)[:-1]]
+    history, _ = repo.get_history(conv.id, 8)
+    history = [{"role": m.role, "content": m.content} for m in history][:-1]
     domains = [request.domain] if request.domain else None
     conv_id = conv.id
     role = current_user.role if request.adapt_to_profile else "particulier"
@@ -181,17 +183,17 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers=_SSE_HEADERS)
 
 @router.get("/conversations")
-async def list_conversations(current_user: CurrentUser, limit: int = 20, db: Session = Depends(get_db)):
-    convs = ConversationRepository(db).list_for_user(current_user.id, limit=limit)
-    return [{"id":c.id,"title":c.title,"domain":c.domain,"message_count":len(c.messages),"created_at":c.created_at.isoformat(),"updated_at":c.updated_at.isoformat()} for c in convs]
+async def list_conversations(current_user: CurrentUser, limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
+    repo = ConversationRepository(db)
+    convs, total = repo.list_for_user(current_user.id, limit=limit, offset=offset)
+    return {"items":[{"id":c.id,"title":c.title,"domain":c.domain,"message_count":len(c.messages),"created_at":c.created_at.isoformat(),"updated_at":c.updated_at.isoformat()} for c in convs],"total":total,"limit":limit,"offset":offset}
 
 @router.get("/conversations/{conv_id}")
-async def get_conversation(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
+async def get_conversation(conv_id: str, current_user: CurrentUser, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
     conv = ConversationRepository(db).get(conv_id, current_user.id)
     if not conv: raise HTTPException(404, "Conversation introuvable.")
-    # confidence_label n'est pas persisté (seul le score l'est) — on le redérive
-    # du score enregistré, avec les mêmes seuils que la génération live.
-    return {"id":conv.id,"title":conv.title,"domain":conv.domain,"created_at":conv.created_at.isoformat(),"messages":[{"id":m.id,"role":m.role,"content":m.content,"citations":m.citations or [],"confidence_score":m.confidence_score,"confidence_label":confidence_label_for_score(m.confidence_score) if m.confidence_score is not None else None,"feedback":m.feedback,"created_at":m.created_at.isoformat()} for m in conv.messages]}
+    messages, total = ConversationRepository(db).get_history(conv.id, limit=limit, offset=offset)
+    return {"id":conv.id,"title":conv.title,"domain":conv.domain,"created_at":conv.created_at.isoformat(),"messages":[{"id":m.id,"role":m.role,"content":m.content,"citations":m.citations or [],"confidence_score":m.confidence_score,"confidence_label":confidence_label_for_score(m.confidence_score) if m.confidence_score is not None else None,"feedback":m.feedback,"created_at":m.created_at.isoformat()} for m in messages],"total":total,"limit":limit,"offset":offset}
 
 @router.delete("/conversations/{conv_id}")
 async def delete_conversation(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
@@ -204,3 +206,18 @@ async def set_message_feedback(message_id: str, request: FeedbackRequest, curren
     if not msg:
         raise HTTPException(404, "Message introuvable.")
     return {"message_id": msg.id, "feedback": msg.feedback}
+
+@router.get("/search-history")
+async def search_history(current_user: CurrentUser, q: str, limit: int = 20, db: Session = Depends(get_db)):
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(400, "Requête trop courte (min 2 caractères).")
+    term = f"%{q.strip()}%"
+    results = (
+        db.query(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .filter(Conversation.user_id == current_user.id, Message.content.ilike(term))
+        .order_by(Message.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [{"id": m.id, "conversation_id": m.conversation_id, "role": m.role, "content": m.content, "confidence_score": m.confidence_score, "created_at": m.created_at.isoformat()} for m in results]

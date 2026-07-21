@@ -18,3 +18,6 @@ lawis-mg-final/frontend/build/
 .vscode/
 .idea/
 test_lexia.db
+
+# Config d un autre outil IA (Kilo Code)
+.kilo/

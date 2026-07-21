@@ -57,6 +57,7 @@ class Settings(BaseSettings):
         return self._model_list(self.GROQ_MODEL, self.GROQ_MODELS)
     LLM_TEMPERATURE: float = 0.1
     LLM_MAX_TOKENS: int = 2048
+    MAX_CONTEXT_TOKENS: int = 6000
     EMBEDDING_MODEL: str = "intfloat/multilingual-e5-large"
     RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     # Chemins vers les binaires poppler (pdftoppm...) et tesseract, requis pour

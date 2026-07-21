@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Scale, MessageSquare, BarChart2, GitCompare, Hash, Upload, Calculator, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { Scale, MessageSquare, BarChart2, GitCompare, Hash, Upload, Calculator, LogOut, ChevronLeft, ChevronRight, Bell } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import NotificationBell from "./NotificationBell";
 
 const NAV = [
   { to: "/", icon: MessageSquare, label: "Assistant juridique", end: true },
@@ -25,9 +26,12 @@ export default function Layout({ children }) {
         <div className="main-sidebar-logo">
           <div className="sidebar-logo-icon"><Scale size={20} /></div>
           {!collapsed && <div className="sidebar-logo-text"><span className="sidebar-brand">LexIA Maroc</span><span className="sidebar-tagline">Veille juridique IA</span></div>}
-          <button className="sidebar-collapse-btn" onClick={() => setCollapsed((p) => !p)}>
-            {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-          </button>
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <NotificationBell />
+            <button className="sidebar-collapse-btn" onClick={() => setCollapsed((p) => !p)}>
+              {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+            </button>
+          </div>
         </div>
         <nav className="main-sidebar-nav">
           {NAV.map(({ to, icon: Icon, label, end }) => (

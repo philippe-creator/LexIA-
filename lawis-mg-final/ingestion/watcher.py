@@ -92,9 +92,12 @@ def run_watch_cycle() -> dict:
                 report["new_documents"].extend(new_docs)
                 logger.info(f"{name} : {len(new_docs)} nouveau(x) document(s) détecté(s)")
 
-                # Déclencher l'indexation si nouveaux documents
                 if new_docs:
                     _trigger_indexation(new_docs)
+                    try:
+                        _notify_new_documents(name, new_docs)
+                    except Exception as e:
+                        logger.warning(f"Notification watch {name} ignorée : {e}")
 
         except Exception as e:
             logger.error(f"Erreur source {name} : {e}")
@@ -137,6 +140,30 @@ def _save_report(report: dict):
     report_file = log_dir / f"watch_report_{ts}.json"
     report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info(f"Rapport sauvegardé : {report_file.name}")
+
+
+def _notify_new_documents(source_name: str, new_docs: list[dict]):
+    from sqlalchemy.orm import Session
+    from core.database import SessionLocal, User
+    from services.notifications.notifier import create_notification
+    db = SessionLocal()
+    try:
+        admins = db.query(User).filter(User.role == "admin", User.is_active == True).all()
+        titles = [d.get("title") or d.get("filename") or "document" for d in new_docs[:3]]
+        sample = ", ".join(titles)
+        suffix = f" et {len(new_docs) - len(titles)} autre(s)" if len(new_docs) > len(titles) else ""
+        for admin in admins:
+            create_notification(
+                db,
+                user_id=admin.id,
+                type="watch_new_document",
+                title=f"Nouveaux documents — {source_name.upper()}",
+                message=f"{len(new_docs)} nouveau(x) document(s) détecté(s) sur {source_name} : {sample}{suffix}.",
+                data={"source": source_name, "count": len(new_docs), "documents": [d.get("url") for d in new_docs[:5] if d.get("url")]},
+            )
+    finally:
+        db.close()
+
 
 
 if __name__ == "__main__":

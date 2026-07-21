@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown, Mic, Volume2, Square } from "lucide-react";
+import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown, Mic, Volume2, Square, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../hooks/useChat";
 import { useSpeechToText, useTextToSpeech } from "../../hooks/useVoice";
 import { useAuth } from "../../contexts/AuthContext";
+import { exportService } from "../../services/api";
 
 const CONFIDENCE = {
   "élevé": { icon: CheckCircle2, color: "#16A34A", bg: "#D1FAE5", label: "Confiance élevée" },
@@ -154,8 +155,36 @@ export default function ChatWindow() {
   const [year, setYear] = useState(null);
   const [lang, setLang] = useState("fr");
   const [activeCitations, setActiveCitations] = useState([]);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyResults, setHistoryResults] = useState([]);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+
+  const handleExport = async (convId, format) => {
+    try {
+      const r = await exportService[format](convId);
+      let blob;
+      if (format === "json") {
+        const text = await r.data.text();
+        blob = new Blob([text], { type: "application/json" });
+      } else {
+        blob = new Blob([r.data], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `conversation_${convId}.${format}`; a.click();
+      URL.revokeObjectURL(url);
+    } catch { setError("Export impossible."); }
+  };
+
+  const searchHistory = async (q) => {
+    setHistoryQuery(q);
+    if (!q.trim()) { setHistoryResults([]); return; }
+    try {
+      const r = await chatService.searchHistory(q);
+      setHistoryResults(r.data);
+    } catch { setHistoryResults([]); }
+  };
 
   // Voix : dictée (la transcription s'ajoute au champ) et lecture à voix haute.
   const { supported: sttSupported, listening, start: startDictation, stop: stopDictation } =
@@ -182,16 +211,33 @@ export default function ChatWindow() {
         <div className="conv-sidebar-header">
           <button className="new-conv-btn" onClick={startNewConversation}><Plus size={15}/> Nouvelle conversation</button>
         </div>
+        <div style={{padding:"8px 12px", borderBottom:"1px solid var(--border)"}}>
+          <input className="chat-textarea" placeholder="Rechercher dans l'historique..." value={historyQuery} onChange={(e) => searchHistory(e.target.value)} style={{fontSize:13, padding:"7px 10px", minHeight:36}}/>
+        </div>
         <div className="conv-list">
-          {conversations.length === 0 ? <p className="conv-empty">Aucune conversation.</p> :
-            conversations.map((c) => (
+          {historyQuery && historyResults.length === 0 && <p className="conv-empty">Aucun résultat.</p>}
+          {historyQuery && historyResults.map((m) => (
+            <div key={m.id} className="conv-item" onClick={() => loadConversation(m.conversation_id)}>
+              <MessageSquare size={13} className="conv-icon"/>
+              <div className="conv-info">
+                <span className="conv-title">{m.content.slice(0, 60)}...</span>
+                <span className="conv-date">Conv. {m.conversation_id.slice(0, 8)}... • {new Date(m.created_at).toLocaleDateString("fr-MA")}</span>
+              </div>
+            </div>
+          ))}
+          {!historyQuery && conversations.length === 0 ? <p className="conv-empty">Aucune conversation.</p> :
+            !historyQuery && conversations.map((c) => (
               <div key={c.id} className={`conv-item ${c.id === activeConvId ? "active" : ""}`} onClick={() => loadConversation(c.id)}>
                 <MessageSquare size={13} className="conv-icon"/>
                 <div className="conv-info">
                   <span className="conv-title">{c.title || "Sans titre"}</span>
                   <span className="conv-date">{new Date(c.updated_at).toLocaleDateString("fr-MA")}</span>
                 </div>
-                <button className="conv-delete" onClick={(e) => { e.stopPropagation(); deleteConversation(c.id); }}><Trash2 size={12}/></button>
+                <div style={{display:"flex",gap:2}}>
+                  <button className="conv-delete" onClick={(e) => { e.stopPropagation(); handleExport(c.id, "json"); }} title="Exporter JSON"><Download size={12}/></button>
+                  <button className="conv-delete" onClick={(e) => { e.stopPropagation(); handleExport(c.id, "docx"); }} title="Exporter Word"><BookOpen size={12}/></button>
+                  <button className="conv-delete" onClick={(e) => { e.stopPropagation(); deleteConversation(c.id); }}><Trash2 size={12}/></button>
+                </div>
               </div>
             ))
           }

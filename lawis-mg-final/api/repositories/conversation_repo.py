@@ -14,8 +14,14 @@ class ConversationRepository:
     def get(self, conv_id: str, user_id: str) -> Optional[Conversation]:
         return self.db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == user_id).first()
 
-    def list_for_user(self, user_id: str, limit: int = 20, offset: int = 0) -> list:
-        return self.db.query(Conversation).filter(Conversation.user_id == user_id).order_by(Conversation.updated_at.desc()).offset(offset).limit(limit).all()
+    def list_for_user(self, user_id: str, limit: int = 20, offset: int = 0) -> tuple[list, int]:
+        q = self.db.query(Conversation).filter(Conversation.user_id == user_id)
+        total = q.count()
+        items = q.order_by(Conversation.updated_at.desc()).offset(offset).limit(limit).all()
+        return items, total
+
+    def count_for_user(self, user_id: str) -> int:
+        return self.db.query(Conversation).filter(Conversation.user_id == user_id).count()
 
     def get_or_create(self, user_id: str, conv_id: Optional[str], query: str) -> Conversation:
         if conv_id:
@@ -31,8 +37,11 @@ class ConversationRepository:
         self.db.add(msg); self.db.commit(); self.db.refresh(msg)
         return msg
 
-    def get_history(self, conv_id: str, limit: int = 10) -> list:
-        return self.db.query(Message).filter(Message.conversation_id == conv_id).order_by(Message.created_at.desc()).limit(limit).all()[::-1]
+    def get_history(self, conv_id: str, limit: int = 10, offset: int = 0) -> tuple[list, int]:
+        base = self.db.query(Message).filter(Message.conversation_id == conv_id)
+        total = base.count()
+        items = base.order_by(Message.created_at.asc()).offset(offset).limit(limit).all()
+        return items, total
 
     def set_feedback(self, message_id: str, user_id: str, feedback: Optional[str]) -> Optional[Message]:
         """Enregistre le retour ("up"/"down"/None) sur une réponse de l'assistant,

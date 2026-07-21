@@ -56,10 +56,11 @@ export const authService = {
 export const chatService = {
   send: (d) => api.post("/chat/", d),
   demo: (query) => api.post("/chat/demo", { query }),
-  listConversations: (limit = 30) => api.get(`/chat/conversations?limit=${limit}`),
-  getConversation: (id) => api.get(`/chat/conversations/${id}`),
+  listConversations: (limit = 20, offset = 0) => api.get(`/chat/conversations?limit=${limit}&offset=${offset}`),
+  getConversation: (id, limit = 50, offset = 0) => api.get(`/chat/conversations/${id}?limit=${limit}&offset=${offset}`),
   deleteConversation: (id) => api.delete(`/chat/conversations/${id}`),
   sendFeedback: (messageId, feedback) => api.post(`/chat/messages/${messageId}/feedback`, { feedback }),
+  searchHistory: (q, limit = 20) => api.get(`/chat/search-history?q=${encodeURIComponent(q)}&limit=${limit}`),
 
   // Streaming SSE via fetch (axios ne gère pas les flux ReadableStream).
   // handlers : { onMeta, onToken, onDone, onError }
@@ -136,6 +137,18 @@ export const calculatorService = {
   severancePay: (d) => api.post("/calculators/severance-pay", d),
   noticePeriod: (d) => api.post("/calculators/notice-period", d),
   netSalary: (d) => api.post("/calculators/net-salary", d),
+};
+
+export const exportService = {
+  json: (convId) => api.get(`/export/conversations/${convId}/json`, { responseType: "blob" }),
+  docx: (convId) => api.get(`/export/conversations/${convId}/docx`, { responseType: "blob" }),
+};
+
+export const notificationService = {
+  list: (params = {}) => api.get("/notifications/", { params }),
+  unreadCount: () => api.get("/notifications/unread-count"),
+  markRead: (id) => api.post(`/notifications/${id}/read`),
+  markAllRead: () => api.post("/notifications/read-all"),
 };
 
 export const documentService = {

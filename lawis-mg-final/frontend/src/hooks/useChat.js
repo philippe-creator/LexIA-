@@ -11,7 +11,7 @@ export function useChat() {
   const loadConversations = useCallback(async () => {
     try {
       const res = await chatService.listConversations();
-      setConversations(res.data);
+      setConversations(res.data.items || []);
     } catch {}
   }, []);
 
@@ -19,7 +19,7 @@ export function useChat() {
     try {
       const res = await chatService.getConversation(convId);
       setActiveConvId(convId);
-      setMessages(res.data.messages.map((m) => ({
+      setMessages((res.data.messages || []).map((m) => ({
         id: m.id, role: m.role, content: m.content,
         citations: m.citations || [], confidence_score: m.confidence_score,
         confidence_label: m.confidence_label, feedback: m.feedback || null,

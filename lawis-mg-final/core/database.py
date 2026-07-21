@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 import uuid
-from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text, create_engine, JSON
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, create_engine, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from core.config import settings
@@ -16,22 +16,26 @@ def get_db():
     finally: db.close()
 
 def init_db():
+    # NB : on n'appelle PAS Alembic par programme ici. Le dossier local `alembic/`
+    # (à la racine du projet, sur le sys.path quand uvicorn démarre) masque le
+    # package `alembic` installé, ce qui faisait échouer `from alembic import
+    # command` au démarrage. create_all crée toutes les tables manquantes à
+    # partir des modèles (users, messages, notifications, document_snapshots…)
+    # sans jamais toucher aux tables existantes. Alembic reste disponible pour
+    # les migrations versionnées manuelles (dossier alembic/ + alembic.ini).
     Base.metadata.create_all(bind=engine)
     _run_lightweight_migrations()
 
 def _run_lightweight_migrations():
-    """Migrations minimalistes idempotentes pour les colonnes ajoutées après la
-    création initiale d'une table (pas d'Alembic sur ce projet). `create_all`
-    ne modifie jamais une table existante — on ajoute donc les colonnes
-    manquantes à la main. À remplacer par Alembic si le schéma se complexifie."""
+    """Ajoute les colonnes apparues après la création initiale d'une table —
+    create_all ne modifie jamais une table existante. Idempotent."""
     from sqlalchemy import inspect, text
     inspector = inspect(engine)
-    if "messages" not in inspector.get_table_names():
-        return
-    existing = {c["name"] for c in inspector.get_columns("messages")}
-    if "feedback" not in existing:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE messages ADD COLUMN feedback VARCHAR(4)"))
+    if "messages" in inspector.get_table_names():
+        cols = {c["name"] for c in inspector.get_columns("messages")}
+        if "feedback" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE messages ADD COLUMN feedback VARCHAR(4)"))
 
 class User(Base):
     __tablename__ = "users"
@@ -53,6 +57,7 @@ class User(Base):
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     documents = relationship("UserDocument", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     def to_dict(self):
         return {"id":self.id,"email":self.email,"username":self.username,"full_name":self.full_name,"role":self.role,"profession":self.profession,"legal_level":self.legal_level,"sector":self.sector,"preferred_language":self.preferred_language,"preferences":self.preferences or {},"is_active":self.is_active,"created_at":self.created_at.isoformat() if self.created_at else None}
 
@@ -76,6 +81,7 @@ class Conversation(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     user = relationship("User", back_populates="conversations")
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
+    __table_args__ = (Index('ix_conversations_user_id', 'user_id'), Index('ix_conversations_updated_at', 'updated_at'))
 
 class Message(Base):
     __tablename__ = "messages"
@@ -87,10 +93,10 @@ class Message(Base):
     domains_searched = Column(JSON, default=list)
     confidence_score = Column(Float, nullable=True)
     retrieval_method = Column(String(50), nullable=True)
-    # Retour utilisateur sur une réponse de l'assistant : "up" / "down" / None.
     feedback = Column(String(4), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     conversation = relationship("Conversation", back_populates="messages")
+    __table_args__ = (Index('ix_messages_conversation_id', 'conversation_id'), Index('ix_messages_created_at', 'created_at'))
 
 class UserDocument(Base):
     __tablename__ = "user_documents"
@@ -109,6 +115,7 @@ class UserDocument(Base):
     indexed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User", back_populates="documents")
+    __table_args__ = (Index('ix_user_documents_user_id', 'user_id'), Index('ix_user_documents_created_at', 'created_at'))
 
 class DocumentSnapshot(Base):
     """Copie du texte intégral d'un document au moment de son ingestion —
@@ -133,3 +140,17 @@ class AuditLog(Base):
     details = Column(JSON, default=dict)
     ip_address = Column(String(45), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (Index('ix_audit_logs_user_id', 'user_id'), Index('ix_audit_logs_created_at', 'created_at'), Index('ix_audit_logs_action', 'action'))
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String(50), nullable=False)
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    data = Column(JSON, default=dict)
+    read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User", back_populates="notifications")
+    __table_args__ = (Index('ix_notifications_user_id', 'user_id'), Index('ix_notifications_created_at', 'created_at'), Index('ix_notifications_read', 'read'))

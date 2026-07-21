@@ -1,5 +1,8 @@
 import re
 from typing import Optional
+import tiktoken
+from loguru import logger
+from core.config import settings
 
 ROLE_INSTRUCTIONS = {
     "etudiant": {
@@ -68,6 +71,24 @@ _LANG_DIRECTIVE = {
 def _lang_directive(lang: str) -> str:
     return _LANG_DIRECTIVE.get((lang or "fr").lower(), _LANG_DIRECTIVE["fr"])
 
+_ENCODING = None
+
+def _get_encoding():
+    global _ENCODING
+    if _ENCODING is None:
+        try:
+            _ENCODING = tiktoken.get_encoding("cl100k_base")
+        except Exception:
+            logger.warning("tiktoken cl100k_base introuvable, fallback sur UTF-8 length/4.")
+            _ENCODING = None
+    return _ENCODING
+
+def count_tokens(text: str) -> int:
+    enc = _get_encoding()
+    if enc:
+        return len(enc.encode(text))
+    return max(1, len(text) // 4)
+
 def _clean_source_name(filename: str) -> str:
     """Nom de source lisible à partir du nom de fichier — évite d'exposer un
     numéro de source opaque ("SOURCE 1") que l'utilisateur ne peut pas relier
@@ -82,17 +103,31 @@ def build_prompt(query: str, retrieved_chunks: list[dict], user_role: str = "par
     role = ROLE_INSTRUCTIONS.get(user_role, ROLE_INSTRUCTIONS["particulier"])
     system = f"{CONTEXT_PREAMBLE}\n\n{role['persona']}\n{BASE_RULES}\nSTRUCTURE DE RÉPONSE (uniquement pour les questions substantielles — voir règle 3) :\n{role['structure']}\n\n{_lang_directive(lang)}"
     context_parts = []
+    total_context_tokens = 0
+    max_context = settings.MAX_CONTEXT_TOKENS
     for c in retrieved_chunks:
         meta = c.get("metadata", {})
         source_name = _clean_source_name(meta.get("filename"))
         domain_tag = f" [{meta.get('domain')}]" if meta.get("domain") else ""
-        page_tag = f", p. {meta.get('page')}" if meta.get("page") else ""
-        context_parts.append(f"« {source_name} »{page_tag}{domain_tag}\n{c['text']}")
+        page_tag = f", p. {meta.get('page')}" if meta.get('page') else ""
+        part = f"« {source_name} »{page_tag}{domain_tag}\n{c['text']}"
+        part_tokens = count_tokens(part)
+        if total_context_tokens + part_tokens > max_context:
+            logger.warning(f"Budget contexte atteint ({total_context_tokens + part_tokens} tokens > {max_context}), troncature des chunks.")
+            break
+        total_context_tokens += part_tokens
+        context_parts.append(part)
     context = "\n\n---\n\n".join(context_parts)
     history_section = ""
     if conversation_history:
         lines = [f"{'Utilisateur' if m['role']=='user' else 'Assistant'}: {m['content'][:200]}" for m in conversation_history[-6:]]
-        history_section = "CONTEXTE PRÉCÉDENT :\n" + "\n".join(lines) + "\n\n---\n\n"
+        history_text = "\n".join(lines)
+        history_tokens = count_tokens(history_text)
+        if total_context_tokens + history_tokens > max_context:
+            logger.warning(f"Budget contexte atteint avec historique ({total_context_tokens + history_tokens} tokens > {max_context}), historique réduit.")
+            lines = lines[-4:]
+            history_text = "\n".join(lines)
+        history_section = "CONTEXTE PRÉCÉDENT :\n" + history_text + "\n\n---\n\n"
     user_msg = f"{history_section}TEXTES JURIDIQUES :\n\n{context}\n\n---\n\nQUESTION : {query}\n\nCite le nom réel de chaque source utilisée, directement dans la phrase (jamais un numéro)."
     return system, user_msg
 
