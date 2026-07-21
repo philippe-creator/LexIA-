@@ -151,6 +151,13 @@ export const notificationService = {
   markAllRead: () => api.post("/notifications/read-all"),
 };
 
+export const legalDocumentService = {
+  types: () => api.get("/legal-documents/types"),
+  preview: (docType, data) => api.post(`/legal-documents/${docType}/preview`, { data }),
+  download: (docType, data, format) =>
+    api.post(`/legal-documents/${docType}/download?format=${format}`, { data }, { responseType: "blob" }),
+};
+
 export const documentService = {
   list: () => api.get("/documents/"),
   upload: (fd) => api.post("/documents/upload", fd, { headers: { "Content-Type": "multipart/form-data" } }),
