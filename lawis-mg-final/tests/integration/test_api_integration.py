@@ -38,7 +38,11 @@ def _auth_headers():
         "username": "integration",
     }
     r = client.post("/auth/register", json=payload)
-    assert r.status_code == 200, r.text
+    # La base in-memory est partagée entre les tests (StaticPool au niveau module) :
+    # si l'utilisateur a déjà été créé par un test précédent, on se connecte.
+    if r.status_code == 400:
+        r = client.post("/auth/login", json={"email": payload["email"], "password": payload["password"]})
+    assert r.status_code in (200, 201), r.text  # register renvoie 201 Created, login 200
     token = r.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
