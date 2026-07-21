@@ -9,6 +9,24 @@ let accessToken = null;
 export const setAccessToken = (token) => { accessToken = token; };
 export const getAccessToken = () => accessToken;
 
+// L'API fait tourner le refresh token (l'ancien est révoqué à chaque appel).
+// Deux /auth/refresh concurrents avec le même cookie sont donc fatals : le
+// premier réussit et révoque le jeton, le second reçoit 401 et déconnecte
+// l'utilisateur. Cela arrive dès que plusieurs requêtes reçoivent 401 en même
+// temps — et systématiquement en dev, React.StrictMode montant les effets deux
+// fois. On mutualise donc UNE seule requête de refresh entre tous les appelants
+// concurrents ("single-flight") : un seul appel réseau, un seul jeton consommé.
+let refreshPromise = null;
+export const refreshAccessToken = () => {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
+      .then((res) => { setAccessToken(res.data.access_token); return res.data.access_token; })
+      .finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+};
+
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 60000,
@@ -28,9 +46,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry && original.url !== "/auth/refresh") {
       original._retry = true;
       try {
-        const res = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true });
-        setAccessToken(res.data.access_token);
-        original.headers.Authorization = `Bearer ${res.data.access_token}`;
+        const token = await refreshAccessToken();
+        original.headers.Authorization = `Bearer ${token}`;
         return api(original);
       } catch {
         setAccessToken(null);
@@ -75,11 +92,9 @@ export const chatService = {
 
     let res = await doFetch(getAccessToken());
     if (res.status === 401) {
-      // Une tentative de refresh, comme l'intercepteur axios.
+      // Une tentative de refresh, comme l'intercepteur axios (mutualisée).
       try {
-        const r = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true });
-        setAccessToken(r.data.access_token);
-        res = await doFetch(r.data.access_token);
+        res = await doFetch(await refreshAccessToken());
       } catch {
         setAccessToken(null);
         window.location.href = "/login";

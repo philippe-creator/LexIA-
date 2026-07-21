@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { authService, setAccessToken } from "../services/api";
+import { authService, setAccessToken, refreshAccessToken } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -10,8 +10,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // Pas de jeton en localStorage à relire : on tente un rafraîchissement
     // silencieux via le cookie httpOnly pour restaurer la session au chargement.
-    authService.refresh()
-      .then((res) => { setAccessToken(res.data.access_token); return authService.me(); })
+    // refreshAccessToken() est mutualisé : en dev, StrictMode monte cet effet
+    // deux fois, mais un seul /auth/refresh part réellement — sinon la rotation
+    // du jeton côté API révoquerait celui du premier appel et déconnecterait.
+    refreshAccessToken()
+      .then(() => authService.me())
       .then((res) => setUser(res.data))
       .catch(() => setAccessToken(null))
       .finally(() => setLoading(false));
