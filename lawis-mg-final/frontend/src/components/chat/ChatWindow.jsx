@@ -43,11 +43,6 @@ const DOC_TYPES = [
   { value: "autre", label: "Autre" },
 ];
 
-// L'année extraite du nom de fichier est approximative (voir processing/doc_type.py) —
-// on propose une plage raisonnable plutôt que d'interroger le backend pour la liste exacte.
-const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 12 }, (_, i) => CURRENT_YEAR - i);
-
 // Défense en profondeur : l'API filtre déjà les schémas non http(s), mais on
 // ne fait jamais confiance à une seule couche pour un lien cliquable.
 const isSafeUrl = (url) => typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"));
@@ -152,7 +147,6 @@ export default function ChatWindow() {
   const [input, setInput] = useState("");
   const [domain, setDomain] = useState(null);
   const [docType, setDocType] = useState(null);
-  const [year, setYear] = useState(null);
   const [lang, setLang] = useState("fr");
   const [activeCitations, setActiveCitations] = useState([]);
   const [historyQuery, setHistoryQuery] = useState("");
@@ -200,7 +194,7 @@ export default function ChatWindow() {
     if (!query || loading) return;
     if (listening) stopDictation();
     setInput("");
-    await sendMessage({ query, domain, docType, year, lang });
+    await sendMessage({ query, domain, docType, lang });
   };
 
   const handleKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } };
@@ -260,10 +254,6 @@ export default function ChatWindow() {
             </div>
             <select value={docType || ""} onChange={(e) => setDocType(e.target.value || null)} className="filter-select" title="Filtrer par type de document">
               {DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-            <select value={year || ""} onChange={(e) => setYear(e.target.value ? Number(e.target.value) : null)} className="filter-select" title="Filtrer par année">
-              <option value="">Toutes années</option>
-              {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
         </div>
