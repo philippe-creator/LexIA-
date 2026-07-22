@@ -29,6 +29,11 @@ def _search(variant: str, domains: list[str], n: int, user_id: str | None, doc_t
 
 def retrieve(query: str, top_k: int = None, forced_domains: list[str] = None, user_id: str | None = None, doc_type: str | None = None, year: int | str | None = None) -> tuple[list[dict], float, str, list[str]]:
     top_k = top_k or settings.TOP_K_RETRIEVAL
+    # Un filtre vide n'est pas un filtre : le front envoie "" quand « Tous types »
+    # / « Toutes années » est sélectionné. Sans cette normalisation, Chroma
+    # filtrait sur doc_type == "" (ou year == "") et ne trouvait plus rien.
+    if isinstance(doc_type, str) and not doc_type.strip(): doc_type = None
+    if isinstance(year, str) and not year.strip(): year = None
     domains = forced_domains or route_query(query)
     logger.info(f"Retrieval — domaines : {domains}" + (f" | doc_type={doc_type}" if doc_type else "") + (f" | year={year}" if year else ""))
     variants = expand_query(query, 2) if settings.QUERY_EXPANSION_ENABLED else [query]
@@ -38,7 +43,7 @@ def retrieve(query: str, top_k: int = None, forced_domains: list[str] = None, us
         futures = {ex.submit(_search, v, domains, n, user_id, doc_type, year): v for v in variants}
         for f in as_completed(futures):
             try:
-                res = f.result(timeout=15)
+                res = f.result(timeout=settings.RETRIEVAL_TIMEOUT_SECONDS)
                 if res: all_lists.append(res)
             except Exception as e: logger.warning(f"Variante échouée : {e}")
     if not all_lists: return [], 0.0, "insuffisant", domains

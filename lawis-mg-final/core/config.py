@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     TOP_K_RERANK: int = 3
     HYBRID_ALPHA: float = 0.7
     QUERY_EXPANSION_ENABLED: bool = True
+    # Délai max par variante de recherche. L'embedding multilingual-e5-large est
+    # lent sur CPU : au premier appel (modèle froid) ou sous charge, 15 s étaient
+    # trop courts — toutes les variantes expiraient et la recherche renvoyait
+    # « aucun résultat » à tort. 60 s laisse le temps au chargement/à la charge.
+    RETRIEVAL_TIMEOUT_SECONDS: int = 60
     RATE_LIMIT_REQUESTS: int = 60
     RATE_LIMIT_WINDOW_SECONDS: int = 60
     MAX_UPLOAD_SIZE_MB: int = 50
