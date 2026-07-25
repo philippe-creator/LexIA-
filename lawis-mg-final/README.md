@@ -3,7 +3,7 @@
 > Stage de fin d'année — Transformation Digitale Industrielle
 > Zenithsoft, Rabat | N'Guémawen N'DJINILA | 2026
 
-Plateforme de veille juridique pour le droit marocain basée sur une architecture **multi-RAG** (retrieval hybride dense + BM25 + reranking) avec **LLM via OpenRouter** (aucune installation lourde requise).
+Plateforme de veille juridique pour le droit marocain basée sur une architecture **multi-RAG** (retrieval hybride dense + BM25 + reranking) avec **LLM via Groq** (gratuit, inférence rapide — aucun modèle lourd à héberger côté génération).
 
 ## Fonctionnalités
 - Chatbot juridique adaptatif selon le profil (étudiant / juriste / avocat / entreprise / particulier)
@@ -25,17 +25,20 @@ Droit du travail, fiscal, sociétés, protection des données (loi 09-08), juris
 cp .env.example .env
 
 # 2. Éditer .env — DEUX valeurs obligatoires :
-#    SECRET_KEY         (générer : python -c "import secrets; print(secrets.token_hex(32))")
-#    OPENROUTER_API_KEY (obtenir sur https://openrouter.ai/keys — gratuit)
+#    SECRET_KEY    (générer : python -c "import secrets; print(secrets.token_hex(32))")
+#    GROQ_API_KEY  (obtenir sur https://console.groq.com/keys — gratuit)
 
-# 3. Lancer
-docker-compose up --build
+# 3. Lancer (Docker Desktop doit être démarré)
+docker compose up --build -d
 
-# 4. Ingestion initiale (dans un 2e terminal)
-docker-compose exec api python ingestion/watcher.py
+# 4. (si le corpus est vide) reconstruire depuis data/raw/
+docker compose run --rm api python -m scripts.backfill_corpus
 ```
 
 Accès : Frontend http://localhost:3000 — API http://localhost:8000/docs
+
+> **Mise en production** (HTTPS, reverse proxy, PostgreSQL, check-list sécurité) :
+> voir **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ## Démarrage sans Docker
 
@@ -50,11 +53,15 @@ uvicorn api.main:app --reload --port 8000
 cd frontend && npm install && npm start
 ```
 
-## Pourquoi OpenRouter ?
-OpenRouter donne accès à des centaines de modèles (Mistral, LLaMA, Gemma...) via une seule clé API, **sans télécharger de modèle lourd ni GPU**. Des modèles gratuits sont disponibles (`mistralai/mistral-7b-instruct:free`). Configurable dans `.env` via `OPENROUTER_MODEL`.
+## Fournisseur LLM
+**Groq** est le fournisseur par défaut (`LLM_PROVIDER=groq`, `llama-3.3-70b-versatile`) :
+gratuit, inférence très rapide, aucune installation lourde côté génération. Une
+cascade de secours (`GROQ_MODELS`) prend le relais en cas d'erreur récupérable.
+OpenAI, Gemini et OpenRouter restent supportés comme fournisseurs alternatifs
+(basculer via `LLM_PROVIDER` dans `.env`).
 
 ## Stack
-Python 3.11 · FastAPI · SQLAlchemy · Chroma · sentence-transformers · BM25 · OpenRouter · React 18 · Docker
+Python 3.11 · FastAPI · SQLAlchemy · Chroma · sentence-transformers · BM25 · Groq · React 18 · Docker
 
 ## Tests
 ```bash
@@ -62,4 +69,6 @@ pytest tests/ -v
 ```
 
 ## Production
-Changer dans `.env` : `SECRET_KEY`, `DEBUG=false`, `ENVIRONMENT=production`, `DATABASE_URL=postgresql://...`, `CORS_ORIGINS=https://votre-domaine.ma`
+Voir le runbook complet : **[DEPLOYMENT.md](DEPLOYMENT.md)** (build & lancement
+Docker, HTTPS/reverse proxy, PostgreSQL, initialisation du corpus, check-list
+sécurité).
