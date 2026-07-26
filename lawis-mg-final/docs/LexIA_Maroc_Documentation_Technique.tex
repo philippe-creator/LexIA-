@@ -1,0 +1,542 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---- Moteur : compilé avec Tectonic (XeTeX) ----
+\usepackage{fontspec}
+\usepackage[french]{babel}
+\usepackage{mathtools}      % charge amsmath
+\usepackage{amssymb}
+\usepackage[a4paper,margin=2.4cm,headheight=15pt]{geometry}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
+\usepackage{caption}
+\usepackage[colorlinks=true,linkcolor=navy,urlcolor=goldd]{hyperref}
+
+% ---- Couleurs de l'identité produit ----
+\definecolor{navy}{RGB}{15,31,61}
+\definecolor{navymid}{RGB}{26,46,82}
+\definecolor{goldd}{RGB}{166,132,46}
+\definecolor{goldl}{RGB}{201,164,76}
+\definecolor{ink}{RGB}{26,34,48}
+\definecolor{muted}{RGB}{90,100,120}
+\definecolor{boxbg}{RGB}{243,246,251}
+\definecolor{codebg}{RGB}{247,248,251}
+\definecolor{border}{RGB}{216,222,233}
+
+\color{ink}
+
+% ---- Titres ----
+\titleformat{\section}{\Large\bfseries\color{navy}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{goldd}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{navy}}{}{0em}{}
+\titlespacing*{\section}{0pt}{16pt}{8pt}
+\titlespacing*{\subsection}{0pt}{12pt}{5pt}
+
+% ---- En-tête / pied ----
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead[L]{\small\bfseries\color{navy}LexIA Maroc}
+\fancyhead[R]{\small\color{muted}Documentation technique}
+\fancyfoot[C]{\small\color{muted}\thepage}
+
+% ---- Encadré « formule / remarque » ----
+\newcommand{\note}[1]{\par\vspace{2pt}{\small\color{muted}\textit{#1}}\par\vspace{4pt}}
+
+% ---- Code ----
+\lstset{
+  basicstyle=\ttfamily\small\color{navy},
+  backgroundcolor=\color{codebg},
+  frame=leftline, framerule=1.6pt, rulecolor=\color{goldl},
+  xleftmargin=10pt, framexleftmargin=10pt,
+  breaklines=true, columns=fullflexible,
+  keepspaces=true, showstringspaces=false,
+  aboveskip=8pt, belowskip=8pt,
+}
+
+% Raccourcis math
+\newcommand{\vq}{\mathbf{q}}
+\newcommand{\vd}{\mathbf{d}}
+\DeclarePairedDelimiter\norm{\lVert}{\rVert}
+
+\begin{document}
+
+% ═══════════════════ PAGE DE GARDE ═══════════════════
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\vspace*{2.2cm}
+
+\begin{tikzpicture}
+  \node[rounded corners=8pt, fill=navy, minimum width=2cm, minimum height=2cm] (b) {};
+  \node[goldl] at (b) {\fontsize{40}{40}\selectfont\bfseries\color{goldl}\S};
+\end{tikzpicture}
+
+\vspace{1.1cm}
+{\fontsize{40}{44}\selectfont\bfseries\color{navy} LexIA Maroc}\\[0.5cm]
+{\Large\color{goldd} Plateforme SaaS de veille juridique multi-RAG}\\[0.15cm]
+{\Large\color{goldd} pour le droit marocain}\\[0.7cm]
+
+{\color{goldl}\rule{0.4\textwidth}{1.2pt}}\\[0.7cm]
+
+{\large\color{ink} Documentation technique du projet}\\[0.25cm]
+{\color{muted} Architecture, étapes de réalisation et explication détaillée des algorithmes}\\[2.4cm]
+
+\begin{tabularx}{0.82\textwidth}{@{}>{\bfseries\color{navy}}p{4cm} X@{}}
+\toprule
+Auteur & N'Guémawen N'DJINILA \\[3pt]
+Cadre & Stage de fin d'année --- Transformation Digitale Industrielle \\[3pt]
+Organisme & Zenithsoft, Rabat \\[3pt]
+Version applicative & LexIA Maroc v2.0 \\[3pt]
+Corpus indexé & 6\,353 passages juridiques (travail, fiscal, sociétés, données personnelles) \\
+\bottomrule
+\end{tabularx}
+
+\vfill
+{\small\color{muted} Document composé avec \LaTeX{} (moteur Tectonic / XeTeX).}
+\end{titlepage}
+
+% ═══════════════════ RÉSUMÉ + SOMMAIRE ═══════════════════
+\section*{\color{navy}Résumé}
+\addcontentsline{toc}{section}{Résumé}
+LexIA Maroc est un assistant juridique pour le droit marocain fondé sur une architecture
+\emph{multi-RAG} (\textit{Retrieval-Augmented Generation}). Le système ne répond jamais
+« de mémoire » : il récupère, dans un corpus de textes officiels indexés, les passages les
+plus pertinents, puis un modèle de langage rédige une réponse \textbf{exclusivement} à partir
+de ces passages, en citant l'article, le document et la page exacts. Ce document décrit
+l'architecture en couches, le pipeline d'ingestion, puis détaille --- formules à l'appui ---
+chaque algorithme du pipeline de recherche (embeddings et similarité cosinus, BM25, fusion
+par rangs réciproques, reclassement par cross-encodeur, score de confiance), la génération,
+les fonctionnalités métier, la sécurité, le modèle d'abonnement et le déploiement.
+
+\vspace{6pt}
+{\small\color{muted}
+\tableofcontents}
+
+\clearpage
+
+% ═══════════════════ 1. CONTEXTE ═══════════════════
+\section{Contexte et objectifs}
+
+Le droit marocain est \textbf{dispersé} : Bulletin officiel, codes (travail, commerce, impôts),
+dahirs, lois-cadres, décrets et circulaires. Identifier la disposition applicable à une
+situation précise, avec sa référence exacte, exige une expertise et un temps considérables.
+Les grands modèles de langage (LLM) généralistes n'y répondent pas : ils \textbf{hallucinent}
+des articles, ignorent les textes marocains récents et ne fournissent aucune source vérifiable.
+
+LexIA Maroc répond à ce besoin par une architecture \textbf{multi-RAG} : le modèle de langage
+ne répond qu'à partir de passages de textes officiels \textbf{réellement récupérés}, en citant
+systématiquement leurs sources. C'est la différence fondamentale entre un chatbot généraliste
+et un assistant juridique de confiance.
+
+\subsection{Objectifs fonctionnels}
+\begin{itemize}[leftmargin=1.2em,itemsep=2pt]
+  \item Répondre en langage naturel (français et arabe) sur quatre domaines : droit du travail,
+        fiscal, des sociétés et protection des données personnelles.
+  \item Ancrer chaque réponse sur des sources officielles et les citer précisément (article + page).
+  \item Ne jamais affirmer ce qui n'est pas dans les textes récupérés (garde anti-hallucination).
+  \item Adapter le registre au profil de l'utilisateur (étudiant, particulier, juriste, avocat, entreprise).
+  \item Compléter le chat par des outils métier : calculateurs, audit de contrat, génération de
+        documents, comparaison de versions.
+\end{itemize}
+Le projet s'inscrit dans un stage de fin d'année (Zenithsoft, Rabat) et suit un cahier des
+charges de dix-huit exigences fonctionnelles (BF-01 à BF-18), en visant une qualité produit.
+
+% ═══════════════════ 2. ARCHITECTURE ═══════════════════
+\section{Architecture globale et principes de conception}
+
+Le système est organisé en \textbf{quatre couches applicatives} plus une couche transverse
+(sécurité, persistance), avec une \textbf{règle de dépendance stricte} : les couches métier
+dépendent d'un noyau neutre, jamais l'inverse.
+
+\begin{center}
+\ttfamily\small\color{navy}
+core \(\;\leftarrow\;\) ingestion / processing / retrieval / generation \(\;\leftarrow\;\) api
+\end{center}
+\note{Le noyau « core » ne dépend de personne ; la couche « api » orchestre l'ensemble.}
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{navy}}p{2.6cm} X@{}}
+\toprule
+Couche & Responsabilité \\
+\midrule
+core & Fondations neutres : registre des domaines, configuration, modèles de base, sécurité, offres. \\
+ingestion & Acquisition : scrapers, extraction PDF/OCR, pipeline d'indexation, veille planifiée. \\
+processing & Transformation : découpage en chunks, classification, calculateurs déterministes. \\
+retrieval & Recherche : embeddings, BM25, expansion, fusion RRF, reranking, routage, confiance. \\
+generation & Réponse : construction du prompt, client LLM avec cascade de secours. \\
+api & Exposition HTTP (FastAPI) : authentification, chat en flux, recherche, outils, abonnement. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Pile technique}
+\begin{itemize}[leftmargin=1.2em,itemsep=2pt]
+  \item \textbf{Backend} : Python 3.11, FastAPI, SQLAlchemy, base vectorielle Chroma (une collection par domaine), SQLite/PostgreSQL.
+  \item \textbf{Modèles ML} : sentence-transformers (embeddings + cross-encodeur), rank-bm25, Tesseract (OCR fr+ar).
+  \item \textbf{Génération} : Groq (\texttt{llama-3.3-70b-versatile}), avec OpenAI / Gemini / OpenRouter en secours.
+  \item \textbf{Frontend} : React 18, servi en production par nginx.
+  \item \textbf{Industrialisation} : Docker Compose, JWT + bcrypt, tests pytest.
+\end{itemize}
+
+\subsubsection{Pourquoi multi-RAG plutôt qu'un LLM seul ?}
+Un LLM seul est une mémoire figée et faillible. Le RAG sépare la \textbf{connaissance} (le corpus
+officiel, à jour, vérifiable) de la \textbf{capacité de rédaction} (le LLM). Le modèle ne fait que
+reformuler des extraits qu'on lui fournit --- d'où l'ancrage, la citation des sources et la maîtrise
+des hallucinations.
+
+% ═══════════════════ 3. INGESTION ═══════════════════
+\section{Pipeline d'ingestion des textes juridiques}
+
+Avant toute recherche, les PDF officiels sont transformés en unités indexables, en cinq étapes.
+
+\subsection{Extraction du texte (avec OCR de secours)}
+L'extraction lit d'abord le texte natif via \textbf{PyMuPDF} (rapide, fidèle). Pour un PDF
+\textbf{scanné} (image sans couche texte), on bascule sur l'\textbf{OCR Tesseract} configuré
+français \emph{et} arabe (\texttt{fra+ara}). Un garde-fou limite le nombre de pages soumises à
+l'OCR (protection DoS), mais ne s'applique qu'à ce chemin coûteux : un PDF à texte natif de
+700 pages (le Code Général des Impôts) est extrait intégralement.
+
+\subsection{Suivi de la page source}
+L'extracteur conserve les \textbf{offsets de page}. Après découpage, chaque chunk est relié à sa
+page d'origine par recherche de sous-chaîne. C'est ce qui permet la citation
+« \textit{Code du travail 65-99, p.\,34} », différenciateur fort face aux concurrents.
+
+\subsection{Découpage en chunks}
+Un texte juridique est structuré en articles. Le chunker exploite cette structure via des motifs
+(regex) propres à la rédaction marocaine (« Article~N », « Art.~N », « N~--- », « Chapitre », « Titre »)
+pour découper \textbf{par article}. À défaut, il retombe sur un découpage par taille : cible de
+\textbf{800 caractères}, chevauchement de \textbf{150 caractères}. Le chevauchement évite qu'une
+information à cheval sur deux chunks soit perdue.
+
+\subsection{Snapshots et indexation double}
+À chaque ingestion, une copie du texte intégral est conservée avec son empreinte (hash), pour la
+\textbf{comparaison de versions}. Chaque chunk est ensuite indexé \textbf{deux fois} : dans l'index
+\textbf{vectoriel} (Chroma) pour la recherche sémantique, et dans l'index \textbf{lexical} (BM25)
+pour la correspondance exacte des termes.
+
+% ═══════════════════ 4. MULTI-RAG ═══════════════════
+\section{Le cœur du système : le pipeline multi-RAG}
+
+Une question suit une chaîne de traitements dont chaque maillon a un rôle précis.
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=6mm and 7mm,
+  box/.style={draw=border, fill=boxbg, rounded corners=3pt, minimum height=9mm,
+              inner sep=4pt, font=\scriptsize\bfseries, text=navy, align=center, minimum width=20mm},
+  arr/.style={-{Stealth[length=5pt]}, navymid, thick}]
+  \node[box] (q) {Question};
+  \node[box, right=of q] (r) {Routage\\domaine};
+  \node[box, right=of r] (e) {Expansion};
+  \node[box, right=of e] (h) {Recherche\\dense + BM25};
+  \node[box, below=8mm of h] (rrf) {Fusion\\RRF};
+  \node[box, left=of rrf] (rk) {Reranking\\cross-encodeur};
+  \node[box, left=of rk] (c) {Score de\\confiance};
+  \node[box, left=of c] (g) {Génération\\LLM};
+  \draw[arr] (q)--(r); \draw[arr] (r)--(e); \draw[arr] (e)--(h);
+  \draw[arr] (h)--(rrf); \draw[arr] (rrf)--(rk); \draw[arr] (rk)--(c); \draw[arr] (c)--(g);
+\end{tikzpicture}
+\captionof{figure}{Chaîne de traitement d'une question, du routage à la génération.}
+\end{center}
+
+\subsection{Routage par domaine (classification)}
+Inutile d'interroger les quatre corpus si la question porte clairement sur le droit du travail.
+Le routeur classe la question par \textbf{comptage de mots-clés}. Point subtil : la correspondance
+se fait à \textbf{limite de mot} (\texttt{\textbackslash b} en regex). Sans cela, un mot-clé court
+comme « IS » (impôt sur les sociétés) ou « IR » (impôt sur le revenu) serait trouvé par
+sous-chaîne dans « préav\textbf{is} » ou « secréta\textbf{ir}e » --- provoquant un mauvais routage.
+
+Soit \(s_j\) le nombre de mots-clés du domaine \(j\) présents dans la question. La confiance du
+routage est la part du domaine dominant :
+\begin{equation}
+\mathrm{conf} \;=\; \frac{\displaystyle\max_j s_j}{\displaystyle\sum_j s_j}.
+\end{equation}
+Si \(\mathrm{conf} \ge 0{,}3\), on cible le domaine dominant (et ses domaines complémentaires) ;
+sinon, par prudence, on interroge \textbf{tous} les corpus prioritaires.
+
+\subsection{Embeddings denses et similarité sémantique}
+La recherche « dense » projette chaque texte dans un espace vectoriel où la \textbf{proximité
+géométrique traduit la proximité de sens}. Deux formulations d'une même idée
+(« licenciement abusif » et « rupture injustifiée du contrat ») produisent des vecteurs proches,
+là où une recherche par mots-clés échouerait.
+
+Le modèle est \textbf{intfloat/multilingual-e5-large} (dimension 1024, multilingue fr/ar). Il impose
+des \textbf{préfixes} distincts pour requêtes et passages :
+\begin{lstlisting}[language=Python]
+QUERY_PREFIX = "query: "     # prefixe des questions
+DOC_PREFIX   = "passage: "   # prefixe des passages indexes
+emb = model.encode(prefix + texte, normalize_embeddings=True)
+\end{lstlisting}
+
+La proximité entre une requête \(\vq\) et un document \(\vd\) est la \textbf{similarité cosinus} :
+\begin{equation}
+\operatorname{sim}(\vq,\vd) \;=\; \cos(\theta) \;=\; \frac{\vq \cdot \vd}{\norm{\vq}\,\norm{\vd}}
+\;=\; \frac{\sum_{i=1}^{n} q_i\,d_i}{\sqrt{\sum_i q_i^2}\,\sqrt{\sum_i d_i^2}}.
+\end{equation}
+Comme les vecteurs sont \textbf{normalisés} à la génération (\(\norm{\vq}=\norm{\vd}=1\)), la
+similarité se réduit au \textbf{produit scalaire} \(\operatorname{sim}(\vq,\vd)=\vq\cdot\vd\), ce
+qui accélère la recherche. Chroma renvoie une distance ; on la convertit par
+\(\text{score}=1-\text{distance}\).
+
+\subsection{Recherche lexicale BM25}
+La recherche dense peut « lisser » les termes précis ; or « article~62 » ou une référence exacte
+doivent être trouvés \textbf{à la lettre}. C'est le rôle de \textbf{BM25} (\textit{Best Matching~25}),
+modèle probabiliste de pertinence lexicale. Pour une requête \(Q=\{q_1,\dots,q_n\}\) et un
+document \(D\) :
+\begin{equation}
+\operatorname{score}(D,Q) \;=\; \sum_{i=1}^{n} \operatorname{IDF}(q_i)\cdot
+\frac{f(q_i,D)\,(k_1+1)}{\,f(q_i,D) + k_1\!\left(1 - b + b\,\dfrac{\lvert D\rvert}{\text{avgdl}}\right)},
+\end{equation}
+où \(f(q_i,D)\) est la fréquence du terme \(q_i\) dans \(D\), \(\lvert D\rvert\) la longueur de \(D\)
+et \(\text{avgdl}\) la longueur moyenne des documents. Le poids \textbf{IDF} favorise les termes rares :
+\begin{equation}
+\operatorname{IDF}(q_i) \;=\; \ln\!\left(\frac{N - n(q_i) + 0{,}5}{n(q_i) + 0{,}5} + 1\right),
+\end{equation}
+avec \(N\) le nombre total de documents et \(n(q_i)\) le nombre de documents contenant \(q_i\).
+Le paramètre \(k_1\) règle la \textbf{saturation} de la fréquence (au-delà d'un seuil, un terme
+répété n'apporte plus grand-chose) et \(b\in[0,1]\) la \textbf{normalisation par la longueur}
+(pénalise les documents longs). BM25 apporte la précision lexicale que le dense n'offre pas.
+
+\subsection{Expansion de requête}
+Avant de chercher, le système génère quelques \textbf{variantes} de la question (reformulations,
+synonymes juridiques). Chaque variante produit sa propre liste, ce qui augmente le \textbf{rappel} :
+on rate moins de passages pertinents formulés autrement que la question d'origine.
+
+\subsection{Fusion des listes : Reciprocal Rank Fusion (RRF)}
+On dispose de plusieurs listes classées (dense et BM25, pour chaque variante). Leurs scores ne
+sont \textbf{pas à la même échelle} : une similarité cosinus dans \([0,1]\) contre un score BM25
+non borné. \textbf{RRF} contourne le problème en ne combinant que les \textbf{rangs} :
+\begin{equation}
+\operatorname{RRF}(d) \;=\; \sum_{r\in\mathcal{R}} \frac{1}{k + \operatorname{rang}_r(d)},
+\qquad k = 60,
+\end{equation}
+où \(\mathcal{R}\) est l'ensemble des listes et \(\operatorname{rang}_r(d)\) la position de \(d\)
+dans la liste \(r\) (0 = tête). Un document bien classé dans \textbf{plusieurs} listes cumule les
+contributions et remonte. Le terme \(+k\) atténue l'écart entre les toutes premières positions,
+rendant la fusion robuste au bruit. RRF est sans paramètre à entraîner et très efficace pour
+fusionner des signaux hétérogènes --- d'où son choix.
+
+\subsection{Reclassement par cross-encodeur (reranking)}
+Les embeddings ci-dessus proviennent d'un \textbf{bi-encodeur} : \(\vq\) et \(\vd\) sont encodés
+\textbf{séparément}, puis comparés. Rapide (passages pré-encodés) mais approximatif, car l'encodage
+d'un passage ignore la requête. On affine avec un \textbf{cross-encodeur} (\textbf{ms-marco-MiniLM})
+appliqué aux seuls meilleurs candidats.
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{navy}}p{3cm} X@{}}
+\toprule
+Bi-encodeur & \(\operatorname{enc}(\vq)\) et \(\operatorname{enc}(\vd)\) indépendants, puis cosinus. Rapide : premier tri sur tout le corpus. \\
+Cross-encodeur & Traite la paire \((\vq,\vd)\) \textbf{ensemble} dans un même passage avant du modèle. Bien plus fin, mais coûteux : réservé au re-tri des \(\sim\)10 meilleurs. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Le cross-encodeur renvoie un \textbf{logit} \(s\) non borné, ramené dans \([0,1]\) par une
+\textbf{sigmoïde} :
+\begin{equation}
+\sigma(s) \;=\; \frac{1}{1 + e^{-s}}.
+\end{equation}
+Un \textbf{bonus de correspondance d'article} complète le modèle : si la question cite
+« article~52 » et que le passage provient de l'article~52, son score est multiplié par \(1{,}5\)
+(plafonné à \(1\)) --- le cross-encodeur seul ne privilégie pas toujours la correspondance exacte.
+
+\subsection{Score de confiance}
+Le score de confiance affiché est celui du \textbf{meilleur} passage retenu (déjà normalisé). Il est
+traduit en label qualitatif, jamais en pourcentage trompeur :
+\begin{equation}
+\operatorname{label}(c) =
+\begin{cases}
+\text{élevé} & c \ge 0{,}80,\\
+\text{moyen} & 0{,}60 \le c < 0{,}80,\\
+\text{faible} & 0{,}40 \le c < 0{,}60,\\
+\text{insuffisant} & c < 0{,}40.
+\end{cases}
+\end{equation}
+En dessous de \(0{,}40\), le système renonce et affiche « aucun texte pertinent trouvé »
+plutôt qu'une réponse hasardeuse.
+
+\subsection{Filtre de pertinence de la recherche par référence}
+Lorsqu'aucun mot-clé ne correspond, le repli vectoriel renvoie \textbf{toujours} les voisins les
+plus proches --- même hors sujet, car sur un corpus juridique tout se ressemble (\(\sim\!0{,}8\) de
+similarité). La requête « note circulaire TVA » (aucune circulaire indexée) remontait ainsi cinq
+passages sans rapport. La correction impose un \textbf{recouvrement lexical} : un résultat n'est
+retenu que s'il contient réellement au moins un mot significatif \(t\) de la requête,
+\[
+\exists\, t \in \operatorname{tokens}(Q),\ t \subseteq D,
+\]
+sinon la liste est vide et l'interface l'annonce honnêtement.
+
+% ═══════════════════ 5. GENERATION ═══════════════════
+\section{Génération de la réponse (LLM)}
+
+Les passages retenus sont assemblés dans un \textbf{prompt} soumis au modèle, qui ne fait que
+\textbf{rédiger} à partir de ce contexte.
+
+\subsection{Fournisseur et cascade de secours}
+Le fournisseur par défaut est \textbf{Groq} (\texttt{llama-3.3-70b-versatile}) : gratuit et rapide
+(\(\sim\)7--8\,s). Une \textbf{cascade} bascule sur le modèle suivant en cas d'erreur
+\textbf{récupérable} :
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{navy}}p{4.4cm} X@{}}
+\toprule
+401 (clé invalide) & Fatal --- changer de modèle n'y changera rien, on arrête. \\
+402, 408, 429, 500--504 & Récupérable --- crédits/limite/timeout/panne : on tente le suivant. \\
+Coupure réseau / DNS & Récupérable --- incident possiblement transitoire ou localisé. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+En mode \textbf{streaming} (affichage progressif via SSE), la bascule n'est possible qu'\emph{avant}
+le premier token émis : après, rebasculer casserait l'affichage client.
+
+\subsection{Adaptation au profil (prompt engineering)}
+Le prompt système est composé selon le rôle : cinq \textbf{personas}, chacun avec un ton et une
+structure propres.
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{navy}}p{3.2cm} X@{}}
+\toprule
+Étudiant & Pédagogique, définitions. Sections « Analyse » / « Ce qu'il faut retenir ». \\
+Particulier & Vulgarisé, accessible, orienté action. \\
+Juriste / Avocat & Technique, références d'articles exactes, argumentaire. \\
+Entreprise & Orienté dirigeant. Sections « Obligations » / « Risques » / « Actions ». \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Garde anti-hallucination}
+Des règles strictes encadrent la génération : service \textbf{exclusivement} marocain (ne jamais
+présenter un texte comme étranger --- incident réel : la loi 31-13 qualifiée « de loi française ») ;
+aucune affirmation hors des sources fournies ; interdiction des réponses « cul-de-sac » (indiquer ce
+que couvrent les corpus et inviter à reformuler plutôt qu'un « aucune information » sec). Un
+\textbf{budget de contexte} (comptage de tokens via \texttt{tiktoken}) élague les passages
+excédentaires pour ne jamais dépasser la fenêtre du modèle.
+
+% ═══════════════════ 6. FONCTIONNALITÉS ═══════════════════
+\section{Fonctionnalités métier}
+
+\subsection{Calculateurs juridiques (déterministes)}
+Contrairement au chat, ces calculs \textbf{n'utilisent pas de LLM} : déterministes, reproductibles,
+fondés sur le barème légal avec référence à l'article. L'\textbf{indemnité de licenciement}
+(article~53) suit un barème progressif en heures de salaire par année d'ancienneté. Soit \(w\) le
+salaire mensuel et \(a\) l'ancienneté ; le taux horaire est \(\tau = w/191\) et le nombre d'heures :
+\begin{equation}
+H(a) = \sum_{t} h_t \cdot \min\!\bigl(\max(a - a_{t-1},\,0),\ a_t - a_{t-1}\bigr),
+\end{equation}
+avec les tranches \((h_t)\) de l'article~53 : \(96\) h/an (années 1--5), \(144\) h/an (6--10),
+\(192\) h/an (11--15), \(240\) h/an (au-delà). L'indemnité vaut \(\tau \cdot H(a)\). S'ajoutent le
+\textbf{préavis} (article~51) et le \textbf{salaire net} (CNSS \(4{,}48\%\) plafonnée, AMO
+\(2{,}26\%\), IR au barème progressif).
+
+\subsection{Audit de contrat}
+L'utilisateur importe un contrat ; le système extrait son texte, \textbf{récupère les articles de
+loi pertinents}, puis génère un rapport structuré (conformité, risques, clauses manquantes). Point
+clé : l'audit interroge le corpus \textbf{matière par matière} (période d'essai, préavis, salaire,
+congés, rupture, durée du travail) plutôt qu'en une requête unique --- sans quoi des articles
+décisifs (comme l'\textbf{article~14} sur la durée maximale de la période d'essai) n'étaient jamais
+récupérés, et l'audit concluait à tort à la conformité.
+
+\subsection{Génération de documents et autres outils}
+Quatre modèles déterministes conformes au Code du travail --- \textbf{attestation de travail}
+(art.~72), \textbf{mise en demeure}, \textbf{contrat CDI} (art.~14, 51, 53), \textbf{reçu pour solde
+de tout compte} (art.~73--74) --- remplis par formulaire et exportables en \textbf{Word} et
+\textbf{PDF}. S'y ajoutent la \textbf{comparaison de versions} (diff sur snapshots), la
+\textbf{recherche par référence}, la \textbf{veille réglementaire} et le \textbf{support de l'arabe}
+(RTL).
+
+% ═══════════════════ 7. SÉCURITÉ ═══════════════════
+\section{Sécurité et authentification}
+\begin{itemize}[leftmargin=1.2em,itemsep=3pt]
+  \item \textbf{JWT + bcrypt} : mots de passe hachés (bcrypt, 12 rounds) ; jeton d'accès de courte
+        durée gardé \textbf{en mémoire} côté client (jamais dans \texttt{localStorage} --- résistance au XSS).
+  \item \textbf{Refresh token en cookie httpOnly} : invisible au JavaScript ; en production, drapeau
+        \textbf{Secure} (HTTPS obligatoire).
+  \item \textbf{Rotation du refresh token} : chaque rafraîchissement révoque l'ancien et en émet un
+        nouveau. Un correctif « single-flight » mutualise les rafraîchissements concurrents
+        (React StrictMode en lançait deux, dont le second échouait et déconnectait l'utilisateur).
+  \item \textbf{Rate limiting} : 60 requêtes / 60\,s par IP.
+  \item \textbf{RBAC} et verrouillage de fonctionnalités par offre ; en-têtes de sécurité
+        (CSP, HSTS, X-Frame-Options) appliqués par nginx.
+\end{itemize}
+
+% ═══════════════════ 8. ABONNEMENT ═══════════════════
+\section{Modèle d'abonnement freemium}
+La mécanique d'abonnement --- offres, quotas, compteur d'usage, paywall --- est complète et prête à
+être reliée à un prestataire (\textbf{Stripe} ou \textbf{CMI} au Maroc) via un point d'activation
+unique aujourd'hui « simulé ».
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{navy}}p{2.4cm} p{1.8cm} X@{}}
+\toprule
+Offre & Prix & Contenu \\
+\midrule
+Gratuit & 0 MAD & 20 questions/mois. Chat sourcé, calculateurs, recherche par référence, comparaison. \\
+Pro & 99 MAD & Questions illimitées + audit de contrat + génération de documents + export (JSON/Word). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+Chaque fonctionnalité à forte valeur déclare la clé qui la déverrouille ; l'API refuse (HTTP 402)
+l'accès si l'offre ne l'inclut pas ou si le quota mensuel est épuisé.
+
+% ═══════════════════ 9. DÉPLOIEMENT ═══════════════════
+\section{Déploiement en production et tests}
+
+\subsection{Conteneurisation}
+Trois services orchestrés par Docker Compose : l'\textbf{API} (uvicorn, 2 workers, utilisateur
+non-root, modèles ML préchargés dans l'image pour éviter un téléchargement de 2,2\,Go au premier
+démarrage), le \textbf{frontend} (build React servi par nginx) et le \textbf{watcher} (veille).
+Des \textit{healthchecks} gouvernent l'ordre de démarrage.
+
+\subsection{Configuration de production et qualité}
+\texttt{ENVIRONMENT=production} désactive la documentation d'API et active les cookies Secure ;
+l'API refuse de démarrer si \texttt{SECRET\_KEY} n'a pas été changée ; HTTPS terminé par un reverse
+proxy ; CORS restreint. Le projet est couvert par \textbf{105 tests} (unitaires et d'intégration).
+Plusieurs bugs réels n'ont été détectés qu'en \textbf{exécutant les vrais parcours} : recherche
+d'historique cassée, session perdue au rechargement, recherche par référence hors sujet, audit
+passant à côté d'une non-conformité --- tous corrigés et couverts par des tests de non-régression.
+
+% ═══════════════════ 10. BILAN ═══════════════════
+\section{Bilan, limites et perspectives}
+LexIA Maroc dépasse le stade du prototype : architecture propre en couches, pipeline multi-RAG
+complet (dense + BM25 + RRF + reranking + confiance), réponses sourcées à la page, outils métier,
+sécurité soignée, abonnement freemium et déploiement conteneurisé documenté.
+
+\subsubsection{Limites connues}
+\begin{itemize}[leftmargin=1.2em,itemsep=2pt]
+  \item \textbf{Corpus jurisprudence vide} : les décisions de la Cour de cassation ne sont pas
+        disponibles sous forme d'un recueil PDF exploitable proprement.
+  \item \textbf{OCR des scans} : l'installation de Tesseract sur le poste a été bloquée par les
+        droits administrateur ; les dahirs/arrêtés scannés ne sont pas encore océrisés.
+  \item \textbf{Paiement non branché} : la mécanique est complète, le prestataire réel reste à connecter.
+\end{itemize}
+
+\subsubsection{Perspectives}
+\begin{itemize}[leftmargin=1.2em,itemsep=2pt]
+  \item Brancher le paiement réel (Stripe ou CMI) sur le point d'activation déjà prévu.
+  \item Ajouter les conditions générales et la politique de confidentialité (conformité loi 09-08).
+  \item Sourcer et indexer un corpus de jurisprudence.
+  \item Observabilité (latence, coût par requête) et détection automatique de la langue.
+\end{itemize}
+
+\vspace{10pt}
+\noindent\textcolor{border}{\rule{\textwidth}{0.5pt}}\\[4pt]
+{\small\color{muted} Document technique du projet LexIA Maroc --- Stage de fin d'année, Zenithsoft
+(Rabat). Les réponses fournies par la plateforme sont informatives et ne constituent pas un avis
+juridique professionnel.}
+
+\end{document}
