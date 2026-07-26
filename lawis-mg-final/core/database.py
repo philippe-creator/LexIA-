@@ -36,6 +36,17 @@ def _run_lightweight_migrations():
         if "feedback" not in cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE messages ADD COLUMN feedback VARCHAR(4)"))
+    if "users" in inspector.get_table_names():
+        cols = {c["name"] for c in inspector.get_columns("users")}
+        new_cols = {
+            "plan": "ALTER TABLE users ADD COLUMN plan VARCHAR(20) DEFAULT 'free'",
+            "questions_used": "ALTER TABLE users ADD COLUMN questions_used INTEGER DEFAULT 0",
+            "usage_period_start": "ALTER TABLE users ADD COLUMN usage_period_start DATETIME",
+        }
+        with engine.begin() as conn:
+            for name, ddl in new_cols.items():
+                if name not in cols:
+                    conn.execute(text(ddl))
 
 class User(Base):
     __tablename__ = "users"
@@ -51,6 +62,11 @@ class User(Base):
     sector = Column(String(100), nullable=True)
     preferred_language = Column(String(10), default="fr")
     preferences = Column(JSON, default=dict)
+    # Abonnement (freemium). Le rôle reste le PROFIL métier (adaptation des
+    # réponses) ; le plan est l'OFFRE (quota + fonctionnalités). Voir core/plans.py.
+    plan = Column(String(20), default="free")
+    questions_used = Column(Integer, default=0)
+    usage_period_start = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login_at = Column(DateTime, nullable=True)
@@ -59,7 +75,7 @@ class User(Base):
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     def to_dict(self):
-        return {"id":self.id,"email":self.email,"username":self.username,"full_name":self.full_name,"role":self.role,"profession":self.profession,"legal_level":self.legal_level,"sector":self.sector,"preferred_language":self.preferred_language,"preferences":self.preferences or {},"is_active":self.is_active,"created_at":self.created_at.isoformat() if self.created_at else None}
+        return {"id":self.id,"email":self.email,"username":self.username,"full_name":self.full_name,"role":self.role,"profession":self.profession,"legal_level":self.legal_level,"sector":self.sector,"preferred_language":self.preferred_language,"preferences":self.preferences or {},"plan":self.plan or "free","is_active":self.is_active,"created_at":self.created_at.isoformat() if self.created_at else None}
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"

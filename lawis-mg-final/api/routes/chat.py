@@ -15,6 +15,7 @@ from core.domains import DOMAINS
 from processing.doc_type import DOC_TYPES
 from generation.llm_client import generate, generate_stream
 from generation.prompt_builder import build_prompt, format_citations, extract_suggested_queries
+from services.billing import consume_question
 
 router = APIRouter(prefix="/chat", tags=["Chatbot"])
 
@@ -85,6 +86,7 @@ def _validate_filters(request: ChatRequest):
 @router.post("/", response_model=ChatResponse)
 async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = Depends(get_db)):
     _validate_filters(request)
+    consume_question(db, current_user)  # quota freemium (402 si épuisé)
     try:
         logger.info(f"Chat [{current_user.role}]: {request.query[:60]}")
         repo = ConversationRepository(db)
@@ -124,6 +126,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
       - {"type":"error", "detail": "..."}   en cas d'échec de génération
     """
     _validate_filters(request)
+    consume_question(db, current_user)  # quota freemium (402 si épuisé)
     logger.info(f"Chat stream [{current_user.role}]: {request.query[:60]}")
     repo = ConversationRepository(db)
     conv = repo.get_or_create(current_user.id, request.conversation_id, request.query)

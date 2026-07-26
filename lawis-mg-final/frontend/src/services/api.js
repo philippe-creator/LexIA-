@@ -159,6 +159,13 @@ export const exportService = {
   docx: (convId) => api.get(`/export/conversations/${convId}/docx`, { responseType: "blob" }),
 };
 
+export const billingService = {
+  plans: () => api.get("/billing/plans"),
+  me: () => api.get("/billing/me"),
+  subscribe: (plan) => api.post("/billing/subscribe", { plan }),
+  cancel: () => api.post("/billing/cancel"),
+};
+
 export const notificationService = {
   list: (params = {}) => api.get("/notifications/", { params }),
   unreadCount: () => api.get("/notifications/unread-count"),

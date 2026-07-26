@@ -5,13 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from core.database import get_db
-from api.core.dependencies import CurrentUser
+from api.core.dependencies import CurrentUser, require_feature
+from core.plans import FEATURE_EXPORT
 from api.repositories.conversation_repo import ConversationRepository
 
 router = APIRouter(prefix="/export", tags=["Export"])
 
 @router.get("/conversations/{conv_id}/json")
-async def export_json(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
+async def export_json(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db),
+                      _gate=Depends(require_feature(FEATURE_EXPORT))):
     conv = ConversationRepository(db).get(conv_id, current_user.id)
     if not conv: raise HTTPException(404, "Conversation introuvable.")
     messages, _ = ConversationRepository(db).get_history(conv.id, limit=1000)
@@ -23,7 +25,8 @@ async def export_json(conv_id: str, current_user: CurrentUser, db: Session = Dep
     return StreamingResponse(buf, media_type="application/json", headers={"Content-Disposition": f"attachment; filename=conversation_{conv.id}.json"})
 
 @router.get("/conversations/{conv_id}/docx")
-async def export_docx(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
+async def export_docx(conv_id: str, current_user: CurrentUser, db: Session = Depends(get_db),
+                      _gate=Depends(require_feature(FEATURE_EXPORT))):
     conv = ConversationRepository(db).get(conv_id, current_user.id)
     if not conv: raise HTTPException(404, "Conversation introuvable.")
     messages, _ = ConversationRepository(db).get_history(conv.id, limit=1000)
