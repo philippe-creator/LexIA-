@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Check, Crown, Loader2 } from "lucide-react";
 import { billingService } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useReveal } from "../hooks/useReveal";
 
 export default function Pricing() {
   const { user, updateUser } = useAuth();
@@ -16,6 +17,7 @@ export default function Pricing() {
     billingService.me().then((r) => setUsage(r.data)).catch(() => {});
   };
   useEffect(load, []);
+  useReveal([plans]);
 
   const currentPlan = usage?.plan || user?.plan || "free";
 
@@ -55,7 +57,7 @@ export default function Pricing() {
           const isCurrent = p.key === currentPlan;
           const isPro = p.key === "pro";
           return (
-            <div key={p.key} className={`pricing-card ${isPro ? "pricing-card-pro" : ""} ${isCurrent ? "pricing-card-current" : ""}`}>
+            <div key={p.key} className={`pricing-card reveal ${isPro ? "pricing-card-pro" : ""} ${isCurrent ? "pricing-card-current" : ""}`}>
               {isPro && <div className="pricing-ribbon"><Crown size={13} /> Recommandé</div>}
               <div className="pricing-card-head">
                 <h3>{p.label}</h3>

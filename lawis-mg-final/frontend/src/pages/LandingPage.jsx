@@ -3,6 +3,20 @@ import { Link } from "react-router-dom";
 import { Scale, Search, GitCompare, Calculator, Upload, MessageSquare, CheckCircle2, ArrowRight, Send, Loader2, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import api, { chatService, watchService } from "../services/api";
+import LiveDemo from "../components/landing/LiveDemo";
+import { useCountUp } from "../hooks/useCountUp";
+import { useReveal } from "../hooks/useReveal";
+
+// Statistique réelle avec compteur animé (0 → valeur à l'entrée à l'écran).
+function CountStat({ value, label, suffix = "" }) {
+  const [n, ref] = useCountUp(value || 0);
+  return (
+    <div className="landing-stat" ref={ref}>
+      <span className="landing-stat-value">{n.toLocaleString("fr-MA")}{suffix}</span>
+      <span className="landing-stat-label">{label}</span>
+    </div>
+  );
+}
 
 const DOMAIN_SHORT = { travail: "Travail", fiscal: "Fiscal", societes: "Sociétés", donnees_personnelles: "Données perso.", jurisprudence: "Jurisprudence", divers: "Divers" };
 
@@ -40,6 +54,7 @@ export default function LandingPage() {
     api.get("/health").then((r) => setStats(r.data)).catch(() => {});
     watchService.recentTexts().then((r) => setRecent(r.data || [])).catch(() => {});
   }, []);
+  useReveal([stats, recent]);
 
   const runDemo = async (q) => {
     const query = (q || demoQuery).trim();
@@ -75,13 +90,15 @@ export default function LandingPage() {
       {recent.length > 0 && (
         <div className="landing-ticker">
           <span className="landing-ticker-label">Derniers textes intégrés</span>
-          <div className="landing-ticker-track">
-            {recent.map((t, i) => (
-              <span key={i} className="landing-ticker-item">
-                <span className="landing-ticker-dom">{DOMAIN_SHORT[t.domain] || t.domain}</span>
-                {t.filename}
-              </span>
-            ))}
+          <div className="landing-ticker-viewport">
+            <div className="landing-ticker-track landing-ticker-scroll">
+              {[...recent, ...recent].map((t, i) => (
+                <span key={i} className="landing-ticker-item">
+                  <span className="landing-ticker-dom">{DOMAIN_SHORT[t.domain] || t.domain}</span>
+                  {t.filename}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -116,11 +133,15 @@ export default function LandingPage() {
             </button>
           </div>
           {!demoResult && !demoLoading && !demoError && (
-            <div className="demo-examples">
-              {DEMO_EXAMPLES.map((ex) => (
-                <button key={ex} className="demo-example" onClick={() => runDemo(ex)}>{ex}</button>
-              ))}
-            </div>
+            <>
+              <LiveDemo/>
+              <div className="demo-examples-label">Ou essayez une de ces questions :</div>
+              <div className="demo-examples">
+                {DEMO_EXAMPLES.map((ex) => (
+                  <button key={ex} className="demo-example" onClick={() => runDemo(ex)}>{ex}</button>
+                ))}
+              </div>
+            </>
           )}
           {demoLoading && <div className="demo-loading"><Loader2 size={15} className="spin"/> Recherche dans les textes officiels…</div>}
           {demoError && <div className="demo-error">{demoError}</div>}
@@ -146,14 +167,14 @@ export default function LandingPage() {
 
         {stats && (
           <div className="landing-stats">
-            <div className="landing-stat"><span className="landing-stat-value">{stats.total_chunks?.toLocaleString("fr-MA")}</span><span className="landing-stat-label">passages juridiques indexés</span></div>
-            <div className="landing-stat"><span className="landing-stat-value">{domainsWithData.length}</span><span className="landing-stat-label">domaines actifs sur 6</span></div>
-            <div className="landing-stat"><span className="landing-stat-value">FR</span><span className="landing-stat-label">langue d'interrogation</span></div>
+            <CountStat value={stats.total_chunks} label="passages juridiques indexés"/>
+            <CountStat value={domainsWithData.length} label="domaines actifs sur 6"/>
+            <div className="landing-stat"><span className="landing-stat-value">2</span><span className="landing-stat-label">langues — FR / ع</span></div>
           </div>
         )}
       </section>
 
-      <section className="landing-section">
+      <section className="landing-section reveal">
         <h2 className="landing-section-title">Comment ça marche</h2>
         <div className="landing-steps">
           {STEPS.map((s) => (
@@ -166,7 +187,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-section landing-section-alt">
+      <section className="landing-section landing-section-alt reveal">
         <h2 className="landing-section-title">Fonctionnalités</h2>
         <div className="landing-features">
           {FEATURES.map((f) => (
@@ -179,7 +200,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-section">
+      <section className="landing-section reveal">
         <h2 className="landing-section-title">Domaines couverts</h2>
         <p className="landing-section-sub">L'architecture est conçue pour accueillir n'importe quel nombre de corpus thématiques sans refonte. État actuel de l'indexation :</p>
         <div className="landing-domains">
