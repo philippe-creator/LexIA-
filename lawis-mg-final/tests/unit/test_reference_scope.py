@@ -1,6 +1,7 @@
 import pytest
 from api.routes.reference_search import (
     detect_scope_domain, detect_scope, detect_refs, exact_ref_boost, filename_boost,
+    content_tokens, has_lexical_overlap,
 )
 
 
@@ -67,6 +68,34 @@ def test_filename_boost_prefers_the_named_document():
 def test_filename_boost_is_neutral_without_hint():
     assert filename_boost({"filename": "x.pdf"}, None) == 1.0
     assert filename_boost(None, "code-du-travail") == 1.0
+
+
+def test_content_tokens_keeps_meaningful_words():
+    toks = content_tokens("note circulaire TVA")
+    assert "note" in toks and "circulaire" in toks and "tva" in toks
+
+
+def test_content_tokens_drops_stopwords_and_short():
+    # « de », « la », « article », « loi » sont ignorés (mots-outils / génériques).
+    toks = content_tokens("article 62 de la loi")
+    assert "article" not in toks and "loi" not in toks and "de" not in toks
+    assert "62" in toks
+
+
+def test_overlap_rejects_unrelated_passage():
+    # Cas réel : « note circulaire TVA » vs des passages sans aucun de ces mots.
+    tokens = content_tokens("note circulaire TVA")
+    assert not has_lexical_overlap("Titre V Dispositions transitoires", tokens)
+    assert not has_lexical_overlap("Article 162 : Dans une lettre de change payable à vue", tokens)
+
+
+def test_overlap_accepts_passage_mentioning_a_query_word():
+    tokens = content_tokens("note circulaire TVA")
+    assert has_lexical_overlap("La TVA est exigible au taux normal de 20%.", tokens)
+
+
+def test_overlap_true_when_no_tokens():
+    assert has_lexical_overlap("n'importe quoi", [])
 
 
 def test_code_alone_stays_searchable():

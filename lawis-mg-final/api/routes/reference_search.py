@@ -77,6 +77,27 @@ def classify_ref(ref):
     if "loi de finances" in r: return "loi_de_finances"
     return "loi"
 
+# Mots-outils ignorés pour juger de la pertinence d'un passage.
+_STOP = {"de","des","du","la","le","les","un","une","et","en","au","aux","pour",
+         "par","sur","dans","ce","cette","que","qui","numero","numéro","loi","article"}
+
+def content_tokens(text):
+    """Mots significatifs d'une requête : mots de 3+ lettres et nombres (un
+    numéro d'article/loi comme « 62 » compte), hors mots-outils."""
+    return [t for t in re.findall(r"[a-zà-ÿ]{3,}|\d+", text.lower()) if t not in _STOP]
+
+def has_lexical_overlap(text, tokens):
+    """Vrai si au moins un mot significatif de la requête figure dans le passage.
+
+    Le repli vectoriel renvoie toujours les voisins les plus proches, même hors
+    sujet (sur un corpus juridique homogène, tout se ressemble ~0.8). Exiger la
+    présence d'un mot de la requête évite d'afficher du bruit pour une référence
+    absente du corpus (ex. « note circulaire TVA » — aucune circulaire indexée)."""
+    if not tokens:
+        return True
+    low = text.lower()
+    return any(t in low for t in tokens)
+
 @router.post("/")
 async def search_reference(request: ReferenceRequest, current_user: CurrentUser):
     if request.domain and request.domain not in DOMAINS:
@@ -97,6 +118,7 @@ async def search_reference(request: ReferenceRequest, current_user: CurrentUser)
     pool_size = max(request.top_k * 5, 25)
     for ref in search_refs:
         ref_type=classify_ref(ref)
+        tokens=content_tokens(ref)
         for domain in domains:
             for hit in keyword_search(ref,domain,n_results=pool_size):
                 if ref.lower()[:8] in hit["text"].lower():
@@ -104,7 +126,11 @@ async def search_reference(request: ReferenceRequest, current_user: CurrentUser)
         if len(all_results)<2:
             for domain in domains:
                 for hit in vector_search(ref,domain,n_results=2):
-                    all_results.append({**hit,"reference_detected":ref,"reference_type":ref_type,"domain":domain,"score":hit["score"]*0.7})
+                    # Repli vectoriel : on n'accepte un voisin que s'il contient
+                    # réellement un mot de la référence — sinon c'est du bruit
+                    # (référence absente du corpus).
+                    if has_lexical_overlap(hit["text"], tokens):
+                        all_results.append({**hit,"reference_detected":ref,"reference_type":ref_type,"domain":domain,"score":hit["score"]*0.7})
     seen,final=[],[]
     for r in sorted(all_results,key=lambda x:x.get("score",0),reverse=True):
         key=r["text"][:80]

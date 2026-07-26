@@ -35,7 +35,7 @@ export default function ReferenceSearch() {
             <div className="detected-refs"><span>Références détectées :</span>{results.references_found.map(r=><span key={r} className="ref-tag">{r}</span>)}</div>
           )}
           {results.results?.length===0 ? (
-            <div className="reference-empty">Aucun texte trouvé dans les corpus indexés.<br/><small>Lancez un cycle d'ingestion pour enrichir le corpus.</small></div>
+            <div className="reference-empty">Aucun texte correspondant à cette référence dans les corpus indexés.<br/><small>Vérifiez le numéro, ou ce texte n'est peut-être pas encore couvert (ex. les circulaires ne sont pas indexées). Essayez une recherche par mots-clés dans l'assistant.</small></div>
           ) : (
             <div className="reference-list">
               {results.results?.map((r,i)=>(
