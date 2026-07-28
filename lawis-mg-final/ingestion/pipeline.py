@@ -18,7 +18,10 @@ from processing.indexer import index_document as _index_chunks
 # et retrieval/keyword_search.py). Un snapshot de version est partagé entre
 # tous les utilisateurs via /compare — créer un snapshot pour un upload privé
 # exposerait son contenu intégral à n'importe quel autre utilisateur.
-_NO_SNAPSHOT_SOURCES = {"user_upload"}
+# « juricaf » : les arrêts de jurisprudence sont des décisions individuelles, pas
+# des versions successives d'un même texte — les inscrire dans /compare (qui liste
+# les versions comparables par document) n'aurait aucun sens et l'encombrerait.
+_NO_SNAPSHOT_SOURCES = {"user_upload", "juricaf"}
 
 
 def ingest_text(text: str, domain: str, filename: str, source: str = None, extra_metadata: dict = None, page_offsets: list[int] = None) -> dict:
