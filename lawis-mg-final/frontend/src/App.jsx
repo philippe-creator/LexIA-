@@ -9,7 +9,7 @@ import ReferencePage from "./pages/ReferencePage";
 import ComparePage from "./pages/ComparePage";
 import CalculatorsPage from "./pages/CalculatorsPage";
 import LegalDocumentsPage from "./pages/LegalDocumentsPage";
-import PricingPage from "./pages/PricingPage";
+
 import DashboardPage from "./pages/DashboardPage";
 import DocumentsPage from "./pages/DocumentsPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -42,7 +42,7 @@ function AppRoutes() {
       <Route path="/compare" element={<ProtectedRoute><ComparePage/></ProtectedRoute>}/>
       <Route path="/calculators" element={<ProtectedRoute><CalculatorsPage/></ProtectedRoute>}/>
       <Route path="/legal-documents" element={<ProtectedRoute><LegalDocumentsPage/></ProtectedRoute>}/>
-      <Route path="/pricing" element={<ProtectedRoute><PricingPage/></ProtectedRoute>}/>
+
       <Route path="/documents" element={<ProtectedRoute><DocumentsPage/></ProtectedRoute>}/>
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage/></ProtectedRoute>}/>
       <Route path="/profile" element={<ProtectedRoute><ProfilePage/></ProtectedRoute>}/>

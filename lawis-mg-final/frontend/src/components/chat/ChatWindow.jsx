@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { useChat } from "../../hooks/useChat";
 import { useSpeechToText, useTextToSpeech } from "../../hooks/useVoice";
 import { useAuth } from "../../contexts/AuthContext";
-import { exportService } from "../../services/api";
+import { exportService, chatService } from "../../services/api";
 
 const CONFIDENCE = {
   "élevé": { icon: CheckCircle2, color: "#16A34A", bg: "#D1FAE5", label: "Confiance élevée" },

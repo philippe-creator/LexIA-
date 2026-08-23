@@ -38,16 +38,3 @@ def require_role(*roles: str):
             raise HTTPException(status_code=403, detail=f"Accès réservé aux rôles : {', '.join(roles)}.")
         return current_user
     return dependency
-
-def require_feature(feature: str):
-    """Verrouille une fonctionnalité derrière l'offre de l'utilisateur.
-
-    Renvoie 402 (Payment Required) si l'offre courante n'inclut pas la
-    fonctionnalité — le front l'interprète comme « passez à l'offre Pro »."""
-    from core.plans import plan_has_feature, FEATURE_LABELS
-    def dependency(current_user: CurrentUser) -> User:
-        if not plan_has_feature(current_user.plan or "free", feature):
-            label = FEATURE_LABELS.get(feature, feature)
-            raise HTTPException(status_code=402, detail=f"« {label} » est réservé à l'offre Pro.")
-        return current_user
-    return dependency

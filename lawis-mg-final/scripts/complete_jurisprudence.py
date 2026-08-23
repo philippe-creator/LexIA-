@@ -61,9 +61,16 @@ def fetch_decision(slug: str) -> dict | None:
     soup = BeautifulSoup(html, "html.parser")
     h = soup.find(["h1", "h2"])
     title = (h.get_text(" ", strip=True).strip(" |") if h else "")
-    node = soup.find("div", {"id": "texte"}) or soup.find("div", class_="texte")
-    text = re.sub(r"\n{3,}", "\n\n", node.get_text("\n", strip=True)).strip() if node else ""
-    if len(text) < 200:
+    # juricaf n'expose publiquement que la synthèse (mots-clés + règle de droit),
+    # pas le texte intégral de l'arrêt ; elle vit dans le bloc latéral "Synthèse".
+    node = soup.find("div", class_="bloc-droit") or soup.find("div", {"id": "texte"})
+    raw = node.get_text("\n", strip=True) if node else ""
+    m = re.search(
+        r"Analyses\n(.*?)(?:\nR[ée]f[ée]rences\s*:|\nOrigine de la d[ée]cision|$)",
+        raw, re.S,
+    )
+    text = re.sub(r"\n{3,}", "\n\n", m.group(1)).strip() if m else ""
+    if len(text) < 100:
         return None
     m = re.match(r"MAROC-COURDECASSATION-(\d{4})(\d{2})(\d{2})-(\d+)", slug)
     date = f"{m.group(3)}/{m.group(2)}/{m.group(1)}" if m else ""

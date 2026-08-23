@@ -1,8 +1,7 @@
 import io
 from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import StreamingResponse
-from api.core.dependencies import CurrentUser, require_feature
-from core.plans import FEATURE_LEGAL_DOCUMENTS
+from api.core.dependencies import CurrentUser
 from api.schemas.legal_documents import DocumentGenerationRequest
 from generation.legal_documents import list_document_types, build_document
 from generation.document_renderers import render_docx, render_pdf
@@ -36,7 +35,6 @@ async def download_document(
     request: DocumentGenerationRequest,
     current_user: CurrentUser,
     format: str = Query("docx", pattern="^(docx|pdf)$"),
-    _gate=Depends(require_feature(FEATURE_LEGAL_DOCUMENTS)),
 ):
     """Génère et télécharge le document au format DOCX ou PDF."""
     try:

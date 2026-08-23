@@ -18,7 +18,7 @@ from api.routes.calculators import router as calculators_router
 from api.routes.notifications import router as notifications_router
 from api.routes.export import router as export_router
 from api.routes.legal_documents import router as legal_documents_router
-from api.routes.billing import router as billing_router
+
 
 def _active_llm_key() -> str:
     return {"openai": settings.OPENAI_API_KEY, "gemini": settings.GEMINI_API_KEY, "openrouter": settings.OPENROUTER_API_KEY, "groq": settings.GROQ_API_KEY}.get(settings.LLM_PROVIDER.lower(), "")
@@ -69,7 +69,7 @@ app.include_router(calculators_router)
 app.include_router(notifications_router)
 app.include_router(export_router)
 app.include_router(legal_documents_router)
-app.include_router(billing_router)
+
 
 @app.get("/", tags=["Health"])
 async def root(): return {"service":"LexIA Maroc","version":settings.APP_VERSION,"status":"running","docs":"/docs"}

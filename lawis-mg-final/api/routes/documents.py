@@ -4,9 +4,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from core.config import settings
 from core.database import get_db, UserDocument
-from api.core.dependencies import CurrentUser, require_feature
+from api.core.dependencies import CurrentUser
 from core.domains import DOMAINS
-from core.plans import FEATURE_CONTRACT_AUDIT
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
@@ -103,8 +102,7 @@ async def list_docs(current_user: CurrentUser, db: Session = Depends(get_db)):
     return [{"id":d.id,"filename":d.original_filename,"domain":d.domain,"status":d.status,"chunk_count":d.chunk_count,"file_size":d.file_size,"error_message":d.error_message,"created_at":d.created_at.isoformat()} for d in docs]
 
 @router.post("/{doc_id}/audit")
-async def audit_document(doc_id: str, current_user: CurrentUser, db: Session = Depends(get_db),
-                         _gate=Depends(require_feature(FEATURE_CONTRACT_AUDIT))):
+async def audit_document(doc_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
     """Audite un contrat importé au regard du droit du travail marocain :
     extrait son texte, récupère des passages de loi pertinents (grounding RAG)
     et génère un rapport structuré citant les articles applicables."""

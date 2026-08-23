@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Scale, MessageSquare, BarChart2, GitCompare, Hash, Upload, Calculator, FileText, Crown, LogOut, ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import { Scale, MessageSquare, BarChart2, GitCompare, Hash, Upload, Calculator, FileText, LogOut, ChevronLeft, ChevronRight, Bell } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import NotificationBell from "./NotificationBell";
 
@@ -12,7 +12,7 @@ const NAV = [
   { to: "/legal-documents", icon: FileText, label: "Générer un document" },
   { to: "/documents", icon: Upload, label: "Mes documents" },
   { to: "/dashboard", icon: BarChart2, label: "Tableau de bord" },
-  { to: "/pricing", icon: Crown, label: "Abonnement" },
+
 ];
 
 const ROLE_LABELS = { admin:"Administrateur", juriste:"Juriste", avocat:"Avocat", entreprise:"Entreprise", etudiant:"Étudiant", particulier:"Particulier" };
@@ -47,7 +47,7 @@ export default function Layout({ children }) {
         <div className="sidebar-bottom">
           <NavLink to="/profile" className={({ isActive }) => `sidebar-nav-item user-item ${isActive ? "active" : ""}`}>
             <div className="user-avatar">{user?.full_name?.[0] || user?.username?.[0] || "U"}</div>
-            {!collapsed && <div className="user-info"><span className="user-name">{user?.full_name || user?.username}{user?.plan === "pro" && <span className="plan-badge"><Crown size={10}/> Pro</span>}</span><span className="user-role">{ROLE_LABELS[user?.role] || user?.role}</span></div>}
+            {!collapsed && <div className="user-info"><span className="user-name">{user?.full_name || user?.username}</span><span className="user-role">{ROLE_LABELS[user?.role] || user?.role}</span></div>}
           </NavLink>
           <button className="sidebar-nav-item logout-btn" onClick={async () => { await logout(); navigate("/login"); }} title={collapsed ? "Déconnexion" : undefined}>
             <LogOut size={17} className="nav-icon" />
