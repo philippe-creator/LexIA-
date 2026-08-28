@@ -70,6 +70,7 @@ export default function LandingPage() {
   };
 
   const domainsWithData = stats ? Object.entries(stats.corpus_stats || {}).filter(([, n]) => n > 0) : [];
+  const totalDomainCount = stats ? Object.keys(stats.corpus_stats || {}).length : 0;
 
   return (
     <div className="landing">
@@ -168,7 +169,7 @@ export default function LandingPage() {
         {stats && (
           <div className="landing-stats">
             <CountStat value={stats.total_chunks} label="passages juridiques indexés"/>
-            <CountStat value={domainsWithData.length} label="domaines actifs sur 6"/>
+            <CountStat value={domainsWithData.length} label={`domaines actifs sur ${totalDomainCount}`}/>
             <div className="landing-stat"><span className="landing-stat-value">2</span><span className="landing-stat-label">langues — FR / ع</span></div>
           </div>
         )}
