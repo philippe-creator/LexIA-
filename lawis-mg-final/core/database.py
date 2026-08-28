@@ -38,15 +38,22 @@ def _run_lightweight_migrations():
                 conn.execute(text("ALTER TABLE messages ADD COLUMN feedback VARCHAR(4)"))
     if "users" in inspector.get_table_names():
         cols = {c["name"] for c in inspector.get_columns("users")}
-        new_cols = {
-            "plan": "ALTER TABLE users ADD COLUMN plan VARCHAR(20) DEFAULT 'free'",
-            "questions_used": "ALTER TABLE users ADD COLUMN questions_used INTEGER DEFAULT 0",
-            "usage_period_start": "ALTER TABLE users ADD COLUMN usage_period_start DATETIME",
-        }
-        with engine.begin() as conn:
-            for name, ddl in new_cols.items():
-                if name not in cols:
-                    conn.execute(text(ddl))
+        if "email_verified" not in cols:
+            with engine.begin() as conn:
+                # DEFAULT 1 pour la colonne SQL : les comptes déjà créés avant
+                # l'ajout de cette fonctionnalité sont considérés vérifiés
+                # (grand-père) — seules les NOUVELLES inscriptions, créées via
+                # l'ORM avec default=False (voir le modèle User), devront
+                # confirmer leur email. Sans ce DEFAULT, tous les comptes
+                # existants se retrouveraient bloqués à la connexion du jour
+                # au lendemain.
+                conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT 1"))
+        if "is_owner" not in cols:
+            with engine.begin() as conn:
+                # DEFAULT 0 : personne n'est propriétaire par défaut, y compris
+                # les comptes existants — accordé uniquement via
+                # scripts/promote_owner.py, jamais automatiquement.
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_owner BOOLEAN DEFAULT 0"))
 
 class User(Base):
     __tablename__ = "users"
@@ -62,20 +69,25 @@ class User(Base):
     sector = Column(String(100), nullable=True)
     preferred_language = Column(String(10), default="fr")
     preferences = Column(JSON, default=dict)
-    # Abonnement (freemium). Le rôle reste le PROFIL métier (adaptation des
-    # réponses) ; le plan est l'OFFRE (quota + fonctionnalités). Voir core/plans.py.
-    plan = Column(String(20), default="free")
-    questions_used = Column(Integer, default=0)
-    usage_period_start = Column(DateTime, default=datetime.utcnow)
+    # False pour toute nouvelle inscription (ORM) — voir la migration
+    # ci-dessus pour les comptes créés avant cette fonctionnalité.
+    email_verified = Column(Boolean, default=False)
+    # Distinct de role="admin" : un admin peut gérer le corpus et la veille,
+    # mais seul un propriétaire peut promouvoir/rétrograder d'autres comptes
+    # (voir require_owner dans api/core/dependencies.py). Jamais accordé via
+    # l'API — uniquement via scripts/promote_owner.py, en ligne de commande.
+    is_owner = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login_at = Column(DateTime, nullable=True)
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     documents = relationship("UserDocument", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+    email_verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     def to_dict(self):
-        return {"id":self.id,"email":self.email,"username":self.username,"full_name":self.full_name,"role":self.role,"profession":self.profession,"legal_level":self.legal_level,"sector":self.sector,"preferred_language":self.preferred_language,"preferences":self.preferences or {},"plan":self.plan or "free","is_active":self.is_active,"created_at":self.created_at.isoformat() if self.created_at else None}
+        return {"id":self.id,"email":self.email,"username":self.username,"full_name":self.full_name,"role":self.role,"profession":self.profession,"legal_level":self.legal_level,"sector":self.sector,"preferred_language":self.preferred_language,"preferences":self.preferences or {},"is_active":self.is_active,"email_verified":bool(self.email_verified),"is_owner":bool(self.is_owner),"created_at":self.created_at.isoformat() if self.created_at else None}
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
@@ -86,6 +98,30 @@ class RefreshToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     revoked = Column(Boolean, default=False)
     user = relationship("User", back_populates="refresh_tokens")
+
+class PasswordResetToken(Base):
+    """Même forme que RefreshToken : seul le hash du token est stocké, jamais
+    le token en clair (envoyé une seule fois par email, non récupérable ensuite)."""
+    __tablename__ = "password_reset_tokens"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String(255), unique=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User", back_populates="password_reset_tokens")
+
+class EmailVerificationToken(Base):
+    """Même forme que PasswordResetToken — token envoyé une fois par email à
+    l'inscription, seul son hash est conservé en base."""
+    __tablename__ = "email_verification_tokens"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String(255), unique=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User", back_populates="email_verification_tokens")
 
 class Conversation(Base):
     __tablename__ = "conversations"

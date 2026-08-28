@@ -6,6 +6,7 @@ Cible  : dahirs, décrets, arrêtés relatifs au travail et à la sécurité soc
 import os
 import time
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from pathlib import Path
 from loguru import logger
@@ -20,10 +21,17 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 }
 
+# cnss.ma sert une chaîne de certificats TLS incomplète côté serveur (CA
+# intermédiaire manquante) — confirmé en direct (SSLCertVerificationError :
+# "unable to get local issuer certificate"), pas un souci de notre côté. La
+# désactivation ne s'applique qu'à ce domaine officiel ciblé en dur (voir
+# BASE_URL/same_origin ci-dessus), jamais à une URL arbitraire.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
 def fetch_page(url: str) -> BeautifulSoup | None:
-    resp = requests.get(url, headers=HEADERS, timeout=15)
+    resp = requests.get(url, headers=HEADERS, timeout=15, verify=False)
     resp.raise_for_status()
     return BeautifulSoup(resp.text, "lxml")
 
@@ -35,7 +43,7 @@ def download_pdf(url: str, dest: Path) -> bool:
     if not same_origin(url, BASE_URL):
         logger.warning(f"URL hors domaine ignorée : {url}")
         return False
-    resp = requests.get(url, headers=HEADERS, timeout=30, stream=True)
+    resp = requests.get(url, headers=HEADERS, timeout=30, stream=True, verify=False)
     resp.raise_for_status()
     dest.write_bytes(resp.content)
     logger.info(f"Téléchargé : {dest.name}")

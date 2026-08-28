@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Hash, Search, ExternalLink, Loader2, FileText } from "lucide-react";
 import { searchService } from "../services/api";
-const DL = { travail:"Droit du travail", fiscal:"Droit fiscal", societes:"Droit des sociétés", donnees_personnelles:"Protection des données", jurisprudence:"Jurisprudence", divers:"Divers" };
+const DL = { travail:"Droit du travail", fiscal:"Droit fiscal", societes:"Droit des sociétés", donnees_personnelles:"Protection des données", penal:"Droit pénal", jurisprudence:"Jurisprudence", divers:"Divers" };
 const EXAMPLES = ["loi 09-08","article 62 code du travail","dahir 1-72-184","CGI 2026","loi 17-95","note circulaire TVA"];
 const isSafeUrl = (url) => typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"));
 export default function ReferenceSearch() {
@@ -46,7 +46,7 @@ export default function ReferenceSearch() {
                     <span className="ref-score">Score : {(r.score||0).toFixed(2)}</span>
                   </div>
                   <div className="ref-source"><FileText size={12}/> {r.filename} via {(r.source||"").toUpperCase()}</div>
-                  <blockquote className="ref-excerpt">{r.excerpt}</blockquote>
+                  <blockquote className="ref-excerpt">{r.text}</blockquote>
                   {isSafeUrl(r.url) && <a href={r.url} target="_blank" rel="noreferrer" className="ref-link"><ExternalLink size={11}/> Source officielle</a>}
                 </div>
               ))}

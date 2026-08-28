@@ -45,7 +45,7 @@ Accès : Frontend http://localhost:3000 — API http://localhost:8000/docs
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows : .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env    # remplir SECRET_KEY et OPENROUTER_API_KEY
+cp .env.example .env    # remplir SECRET_KEY et GROQ_API_KEY
 
 # API
 uvicorn api.main:app --reload --port 8000
@@ -54,7 +54,7 @@ cd frontend && npm install && npm start
 ```
 
 ## Fournisseur LLM
-**Groq** est le fournisseur par défaut (`LLM_PROVIDER=groq`, `llama-3.3-70b-versatile`) :
+**Groq** est le fournisseur par défaut (`LLM_PROVIDER=groq`, `openai/gpt-oss-20b`) :
 gratuit, inférence très rapide, aucune installation lourde côté génération. Une
 cascade de secours (`GROQ_MODELS`) prend le relais en cas d'erreur récupérable.
 OpenAI, Gemini et OpenRouter restent supportés comme fournisseurs alternatifs

@@ -7,6 +7,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from core.config import settings
 
 _rate_store: dict[str, list[float]] = defaultdict(list)
+_auth_rate_store: dict[str, list[float]] = defaultdict(list)
+
+# Routes d'authentification : cible privilégiée du brute-force / bourrage de
+# comptes. La limite globale (60/60s) est bien trop permissive pour elles —
+# on leur applique en plus une limite dédiée, beaucoup plus stricte.
+AUTH_RATE_LIMITED_PATHS = {"/auth/login", "/auth/register", "/auth/forgot-password", "/auth/google", "/auth/resend-verification"}
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     EXEMPT = {"/health", "/docs", "/redoc", "/openapi.json", "/"}
@@ -14,6 +20,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in self.EXEMPT: return await call_next(request)
         ip = request.client.host if request.client else "unknown"
         now = time.time()
+
+        if request.url.path in AUTH_RATE_LIMITED_PATHS:
+            auth_window = settings.AUTH_RATE_LIMIT_WINDOW_SECONDS
+            _auth_rate_store[ip] = [t for t in _auth_rate_store[ip] if now - t < auth_window]
+            if len(_auth_rate_store[ip]) >= settings.AUTH_RATE_LIMIT_REQUESTS:
+                return JSONResponse(status_code=429, content={"detail": "Trop de tentatives. Réessayez plus tard."}, headers={"Retry-After": str(auth_window)})
+            _auth_rate_store[ip].append(now)
+
         window = settings.RATE_LIMIT_WINDOW_SECONDS
         _rate_store[ip] = [t for t in _rate_store[ip] if now - t < window]
         if len(_rate_store[ip]) >= settings.RATE_LIMIT_REQUESTS:

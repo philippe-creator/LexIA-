@@ -28,7 +28,15 @@ export function AuthProvider({ children }) {
   }, []);
 
   const register = useCallback(async (data) => {
+    // Ne connecte plus automatiquement : le compte doit d'abord être confirmé
+    // par email (voir api/routes/auth.py /auth/register) — l'appelant reçoit
+    // le message de confirmation à afficher, pas un utilisateur connecté.
     const res = await authService.register(data);
+    return res.data;
+  }, []);
+
+  const loginWithGoogle = useCallback(async (idToken) => {
+    const res = await authService.google(idToken);
     setAccessToken(res.data.access_token);
     setUser(res.data.user);
     return res.data.user;
@@ -43,7 +51,7 @@ export function AuthProvider({ children }) {
   const updateUser = useCallback((data) => setUser((p) => ({ ...p, ...data })), []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

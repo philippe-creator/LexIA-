@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { GitCompare, RefreshCw, Plus, Minus } from "lucide-react";
-import { compareService } from "../services/api";
-const DOMAINS = [{value:"travail",label:"Droit du travail"},{value:"fiscal",label:"Droit fiscal"},{value:"societes",label:"Droit des sociétés"},{value:"donnees_personnelles",label:"Protection des données"},{value:"jurisprudence",label:"Jurisprudence"}];
+import { compareService, extractErrorMessage } from "../services/api";
+const DOMAINS = [{value:"travail",label:"Droit du travail"},{value:"fiscal",label:"Droit fiscal"},{value:"societes",label:"Droit des sociétés"},{value:"donnees_personnelles",label:"Protection des données"},{value:"penal",label:"Droit pénal"},{value:"jurisprudence",label:"Jurisprudence"}];
 export default function VersionCompare() {
   const [domain, setDomain] = useState("travail");
   const [versions, setVersions] = useState([]);
@@ -18,7 +18,7 @@ export default function VersionCompare() {
     if(!v1||!v2||v1===v2) return;
     setLoading(true); setError(null);
     try { const res=await compareService.compare({snapshot_id_1:v1,snapshot_id_2:v2}); setResult(res.data); }
-    catch(e) { setError(e.response?.data?.detail||"Erreur."); }
+    catch(e) { setError(extractErrorMessage(e, "Erreur.")); }
     finally { setLoading(false); }
   };
   return (

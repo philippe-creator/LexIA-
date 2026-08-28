@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown, Mic, Volume2, Square, Download } from "lucide-react";
+import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown, Mic, Volume2, Square, Download, FileText, X, Menu } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../hooks/useChat";
 import { useSpeechToText, useTextToSpeech } from "../../hooks/useVoice";
 import { useAuth } from "../../contexts/AuthContext";
-import { exportService, chatService } from "../../services/api";
+import { exportService, chatService, documentService } from "../../services/api";
 
 const CONFIDENCE = {
   "élevé": { icon: CheckCircle2, color: "#16A34A", bg: "#D1FAE5", label: "Confiance élevée" },
@@ -27,10 +27,11 @@ const DOMAINS = [
   { value: "fiscal", label: "Fiscal", emoji: "🏦" },
   { value: "societes", label: "Sociétés", emoji: "🏢" },
   { value: "donnees_personnelles", label: "Données", emoji: "🔒" },
+  { value: "penal", label: "Pénal", emoji: "⚔️" },
   { value: "jurisprudence", label: "Jurisprudence", emoji: "📚" },
 ];
 
-const DOMAIN_LABELS = { travail:"Droit du travail", fiscal:"Droit fiscal", societes:"Droit des sociétés", donnees_personnelles:"Protection des données", jurisprudence:"Jurisprudence", divers:"Divers" };
+const DOMAIN_LABELS = { travail:"Droit du travail", fiscal:"Droit fiscal", societes:"Droit des sociétés", donnees_personnelles:"Protection des données", penal:"Droit pénal", jurisprudence:"Jurisprudence", divers:"Divers" };
 
 const DOC_TYPES = [
   { value: "", label: "Tous types" },
@@ -147,10 +148,15 @@ export default function ChatWindow() {
   const [input, setInput] = useState("");
   const [domain, setDomain] = useState(null);
   const [docType, setDocType] = useState(null);
+  const [documentId, setDocumentId] = useState(null);
+  const [myDocuments, setMyDocuments] = useState([]);
   const [lang, setLang] = useState("fr");
   const [activeCitations, setActiveCitations] = useState([]);
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyResults, setHistoryResults] = useState([]);
+  // Historique des conversations : tiroir masqué par défaut sur mobile (sinon
+  // ses 240px fixes ne laissent presque plus de place au chat lui-même).
+  const [convSidebarOpen, setConvSidebarOpen] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -187,6 +193,9 @@ export default function ChatWindow() {
   const handleSpeak = (text, id) => { if (speakingId === id) cancelSpeech(); else speak(text, lang, id); };
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
+  useEffect(() => {
+    documentService.list().then((r) => setMyDocuments((r.data || []).filter((d) => d.status === "indexed"))).catch(() => {});
+  }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
 
   const handleSend = async (q = null) => {
@@ -194,16 +203,17 @@ export default function ChatWindow() {
     if (!query || loading) return;
     if (listening) stopDictation();
     setInput("");
-    await sendMessage({ query, domain, docType, lang });
+    await sendMessage({ query, domain, docType, documentId, lang });
   };
 
   const handleKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } };
 
   return (
     <div className="chat-shell">
-      <aside className="conv-sidebar">
+      {convSidebarOpen && <div className="mobile-sidebar-backdrop chat-backdrop" onClick={() => setConvSidebarOpen(false)} />}
+      <aside className={`conv-sidebar ${convSidebarOpen ? "open" : ""}`}>
         <div className="conv-sidebar-header">
-          <button className="new-conv-btn" onClick={startNewConversation}><Plus size={15}/> Nouvelle conversation</button>
+          <button className="new-conv-btn" onClick={() => { startNewConversation(); setConvSidebarOpen(false); }}><Plus size={15}/> Nouvelle conversation</button>
         </div>
         <div style={{padding:"8px 12px", borderBottom:"1px solid var(--border)"}}>
           <input className="chat-textarea" placeholder="Rechercher dans l'historique..." value={historyQuery} onChange={(e) => searchHistory(e.target.value)} style={{fontSize:13, padding:"7px 10px", minHeight:36}}/>
@@ -211,7 +221,7 @@ export default function ChatWindow() {
         <div className="conv-list">
           {historyQuery && historyResults.length === 0 && <p className="conv-empty">Aucun résultat.</p>}
           {historyQuery && historyResults.map((m) => (
-            <div key={m.id} className="conv-item" onClick={() => loadConversation(m.conversation_id)}>
+            <div key={m.id} className="conv-item" onClick={() => { loadConversation(m.conversation_id); setConvSidebarOpen(false); }}>
               <MessageSquare size={13} className="conv-icon"/>
               <div className="conv-info">
                 <span className="conv-title">{m.content.slice(0, 60)}...</span>
@@ -221,7 +231,7 @@ export default function ChatWindow() {
           ))}
           {!historyQuery && conversations.length === 0 ? <p className="conv-empty">Aucune conversation.</p> :
             !historyQuery && conversations.map((c) => (
-              <div key={c.id} className={`conv-item ${c.id === activeConvId ? "active" : ""}`} onClick={() => loadConversation(c.id)}>
+              <div key={c.id} className={`conv-item ${c.id === activeConvId ? "active" : ""}`} onClick={() => { loadConversation(c.id); setConvSidebarOpen(false); }}>
                 <MessageSquare size={13} className="conv-icon"/>
                 <div className="conv-info">
                   <span className="conv-title">{c.title || "Sans titre"}</span>
@@ -240,6 +250,7 @@ export default function ChatWindow() {
 
       <div className="chat-main">
         <div className="chat-domain-bar">
+          <button className="conv-sidebar-toggle" onClick={() => setConvSidebarOpen(true)} aria-label="Historique des conversations"><Menu size={18}/></button>
           <div className="domain-selector">
             {DOMAINS.map((d) => (
               <button key={String(d.value)} onClick={() => setDomain(d.value)} className={`domain-chip ${domain === d.value ? "active" : ""}`}>
@@ -255,8 +266,21 @@ export default function ChatWindow() {
             <select value={docType || ""} onChange={(e) => setDocType(e.target.value || null)} className="filter-select" title="Filtrer par type de document">
               {DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
+            {myDocuments.length > 0 && (
+              <select value={documentId || ""} onChange={(e) => setDocumentId(e.target.value || null)} className="filter-select" title="Discuter avec un de vos documents importés">
+                <option value="">Tous les textes</option>
+                {myDocuments.map((d) => <option key={d.id} value={d.id}>📄 {d.filename}</option>)}
+              </select>
+            )}
           </div>
         </div>
+
+        {documentId && (
+          <div className="doc-scope-banner">
+            <FileText size={13}/> Vous discutez uniquement avec « {myDocuments.find((d) => d.id === documentId)?.filename} »
+            <button onClick={() => setDocumentId(null)} title="Revenir à tous les textes"><X size={13}/></button>
+          </div>
+        )}
 
         <div className="messages-area" dir={lang === "ar" ? "rtl" : "ltr"}>
           {messages.length === 0 && (

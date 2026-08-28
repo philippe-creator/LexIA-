@@ -32,6 +32,19 @@ async def compare(request: CompareRequest, current_user: CurrentUser, db: Sessio
     if s1.domain != s2.domain:
         raise HTTPException(400, "Les deux versions doivent appartenir au même domaine juridique.")
 
+    # Un domaine regroupe plusieurs textes distincts (ex. Code du travail ET
+    # loi AMO dans « travail ») — appartenir au même domaine ne veut pas dire
+    # être deux versions du même texte. Sans ce garde-fou, comparer deux
+    # documents sans rapport produit un diff qui ressemble à un vrai résultat
+    # (« 1297 lignes ajoutées ») alors qu'il ne veut rien dire.
+    similarity = difflib.SequenceMatcher(None, s1.full_text, s2.full_text).quick_ratio()
+    if similarity < 0.5:
+        raise HTTPException(
+            422,
+            f"« {s1.filename} » et « {s2.filename} » semblent être deux textes différents, pas deux "
+            f"versions du même document (similarité {similarity:.0%}) — la comparaison n'aurait pas de sens.",
+        )
+
     t1, t2 = s1.full_text.splitlines(), s2.full_text.splitlines()
     blocks = []
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, t1, t2).get_opcodes():

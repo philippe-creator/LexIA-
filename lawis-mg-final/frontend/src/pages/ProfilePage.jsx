@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { authService } from "../services/api";
+import { authService, extractErrorMessage } from "../services/api";
 const LEVELS = [{value:"debutant",label:"Débutant"},{value:"intermediaire",label:"Intermédiaire"},{value:"expert",label:"Expert"}];
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
@@ -10,7 +10,7 @@ export default function ProfilePage() {
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true);
     try { const r=await authService.updateProfile(form); updateUser(r.data); setMsg({type:"success",text:"Profil mis à jour."}); }
-    catch(err) { setMsg({type:"error",text:err.response?.data?.detail||"Erreur"}); }
+    catch(err) { setMsg({type:"error",text:extractErrorMessage(err, "Erreur")}); }
     finally { setLoading(false); }
   };
   return (

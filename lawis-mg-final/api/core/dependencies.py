@@ -38,3 +38,11 @@ def require_role(*roles: str):
             raise HTTPException(status_code=403, detail=f"Accès réservé aux rôles : {', '.join(roles)}.")
         return current_user
     return dependency
+
+def require_owner(current_user: CurrentUser) -> User:
+    """Distinct de require_role("admin") : réservé à la gestion des comptes
+    (promouvoir/rétrograder un admin) — un admin normal ne doit pas pouvoir
+    créer d'autres admins, seul le propriétaire le peut."""
+    if not current_user.is_owner:
+        raise HTTPException(status_code=403, detail="Accès réservé au propriétaire du compte.")
+    return current_user

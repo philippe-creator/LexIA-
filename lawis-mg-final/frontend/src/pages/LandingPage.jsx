@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Scale, Search, GitCompare, Calculator, Upload, MessageSquare, CheckCircle2, ArrowRight, Send, Loader2, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import api, { chatService, watchService } from "../services/api";
+import api, { chatService, watchService, extractErrorMessage } from "../services/api";
 import LiveDemo from "../components/landing/LiveDemo";
 import { useCountUp } from "../hooks/useCountUp";
 import { useReveal } from "../hooks/useReveal";
@@ -18,7 +18,7 @@ function CountStat({ value, label, suffix = "" }) {
   );
 }
 
-const DOMAIN_SHORT = { travail: "Travail", fiscal: "Fiscal", societes: "Sociétés", donnees_personnelles: "Données perso.", jurisprudence: "Jurisprudence", divers: "Divers" };
+const DOMAIN_SHORT = { travail: "Travail", fiscal: "Fiscal", societes: "Sociétés", donnees_personnelles: "Données perso.", penal: "Pénal", jurisprudence: "Jurisprudence", divers: "Divers" };
 
 const DEMO_EXAMPLES = [
   "Quel est le délai de préavis en cas de démission ?",
@@ -26,7 +26,7 @@ const DEMO_EXAMPLES = [
   "Quelles sanctions si un employeur n'immatricule pas ses salariés ?",
 ];
 
-const DOMAIN_LABELS = { travail: "Droit du travail", fiscal: "Droit fiscal", societes: "Droit des sociétés", donnees_personnelles: "Données personnelles", jurisprudence: "Jurisprudence", divers: "Divers" };
+const DOMAIN_LABELS = { travail: "Droit du travail", fiscal: "Droit fiscal", societes: "Droit des sociétés", donnees_personnelles: "Données personnelles", penal: "Droit pénal", jurisprudence: "Jurisprudence", divers: "Divers" };
 
 const FEATURES = [
   { icon: MessageSquare, title: "Chat juridique sourcé", desc: "Posez une question en français, obtenez une réponse structurée citant l'article, le document et la page exacts — vérifiable dans le texte officiel." },
@@ -65,7 +65,7 @@ export default function LandingPage() {
       const res = await chatService.demo(query);
       setDemoResult(res.data);
     } catch (e) {
-      setDemoError(e.response?.data?.detail || "Le service est momentanément indisponible. Réessayez.");
+      setDemoError(extractErrorMessage(e, "Le service est momentanément indisponible. Réessayez."));
     } finally { setDemoLoading(false); }
   };
 
@@ -220,6 +220,7 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <p>Stage de fin d'année — Transformation Digitale Industrielle · Zenithsoft, Rabat</p>
         <p className="landing-disclaimer">Les réponses fournies sont informatives et ne constituent pas un avis juridique professionnel.</p>
+        <p className="landing-footer-links"><Link to="/cgu">CGU</Link> · <Link to="/confidentialite">Politique de confidentialité</Link></p>
       </footer>
     </div>
   );

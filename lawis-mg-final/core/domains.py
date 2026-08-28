@@ -63,6 +63,16 @@ _REGISTRY: tuple[DomainInfo, ...] = (
             "données sensibles", "finalité du traitement", "déclaration CNDP",
         ),
     ),
+    DomainInfo(
+        slug="penal", label="Droit pénal", priority=True,
+        keywords=(
+            "code pénal", "infraction", "délit", "crime", "peine",
+            "emprisonnement", "amende pénale", "circonstances atténuantes",
+            "récidive", "complicité", "tentative", "vol", "escroquerie",
+            "abus de confiance", "coups et blessures", "diffamation",
+            "prescription pénale", "plainte", "poursuite pénale", "casier judiciaire",
+        ),
+    ),
     DomainInfo(slug="jurisprudence", label="Jurisprudence"),
     DomainInfo(slug="divers", label="Divers"),
 )

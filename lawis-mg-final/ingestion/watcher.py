@@ -15,8 +15,19 @@ from ingestion.scrapers.dgi_scraper import scrape_dgi
 from ingestion.scrapers.cnss_scraper import scrape_cnss
 from ingestion.scrapers.cspj_scraper import scrape_cspj
 from ingestion.scrapers.opendata_client import collect_legal_datasets
+from ingestion.scrapers.sgg_scraper import scrape_sgg
 
 STATE_FILE = Path(os.getenv("LOGS_DIR", "./logs")) / "watch_state.json"
+# scrape_cspj() documente sa valeur par défaut (5) comme une limite de
+# développement — jamais relevée pour un usage réel. Variable d'env pour
+# pouvoir l'ajuster sans redéploiement.
+CSPJ_MAX_PAGES = int(os.getenv("CSPJ_MAX_PAGES", "25"))
+# scrape_sgg() ne télécharge que ce lot de numéros manquants par cycle
+# automatique (24h) — suffisant pour la fraîcheur (nouvelles publications,
+# toujours en tête de liste). Le rattrapage de l'archive complète (~4891
+# numéros depuis 1912) est confié à un job séparé, plus fréquent, voir
+# SGG_BACKFILL_* dans ingestion/scheduler.py — pas ce cycle-ci.
+SGG_MAX_ISSUES = int(os.getenv("SGG_MAX_ISSUES", "20"))
 
 
 def load_state() -> dict:
@@ -57,8 +68,9 @@ def run_watch_cycle() -> dict:
         {"name": "cndp", "fn": scrape_cndp},
         {"name": "dgi", "fn": scrape_dgi},
         {"name": "cnss", "fn": scrape_cnss},
-        {"name": "cspj", "fn": lambda: scrape_cspj(max_pages_per_chambre=2)},
+        {"name": "cspj", "fn": lambda: scrape_cspj(max_pages_per_chambre=CSPJ_MAX_PAGES)},
         {"name": "opendata", "fn": collect_legal_datasets},
+        {"name": "sgg", "fn": lambda: scrape_sgg(batch_size=SGG_MAX_ISSUES)},
     ]
 
     new_state = {}
@@ -109,6 +121,32 @@ def run_watch_cycle() -> dict:
     return report
 
 
+def backfill_sgg_cycle(batch_size: int) -> dict:
+    """
+    Job séparé du cycle de veille normal (24h) : rattrape l'archive complète
+    du Bulletin Officiel, `batch_size` numéros à la fois, à un rythme plus
+    soutenu (voir SGG_BACKFILL_INTERVAL_HOURS dans ingestion/scheduler.py).
+
+    Ne fait rien de spécial pour "reprendre" — scrape_sgg() saute déjà tout
+    ce qui existe sur disque (dest.exists()), donc chaque appel reprend
+    naturellement là où le précédent s'est arrêté, résumable après une
+    interruption sans état à gérer ici.
+    """
+    logger.info(f"=== Rattrapage SGG — lot de {batch_size} numéro(s) ===")
+    docs = scrape_sgg(batch_size=batch_size)
+    new_docs = [d for d in docs if d.get("is_new")]
+    if new_docs:
+        _trigger_indexation(new_docs)
+        try:
+            _notify_new_documents("sgg_backfill", new_docs)
+        except Exception as e:
+            logger.warning(f"Notification rattrapage SGG ignorée : {e}")
+    else:
+        logger.info("Rattrapage SGG : archive à jour, rien à traiter.")
+    logger.info(f"=== Rattrapage SGG terminé — {len(new_docs)} numéro(s) traité(s) ===")
+    return {"new_documents": new_docs}
+
+
 def _trigger_indexation(new_docs: list[dict]):
     """Déclenche le pipeline d'ingestion pour les nouveaux documents détectés."""
     from ingestion.pipeline import ingest_pdf, ingest_text
@@ -120,6 +158,13 @@ def _trigger_indexation(new_docs: list[dict]):
             continue
         domain = doc.get("domain", "divers")
         source = doc.get("source")
+        # .xlsx est un binaire (archive ZIP) — path.read_text() dessus produit du
+        # charabia (octets bruts décodés en UTF-8) au lieu d'un texte exploitable.
+        # Tant qu'il n'y a pas d'extracteur dédié (ex. openpyxl), on l'ignore
+        # plutôt que de polluer le corpus RAG et /compare avec du binaire.
+        if path.suffix.lower() == ".xlsx":
+            logger.info(f"Ignoré (xlsx, pas de texte exploitable) : {path.name}")
+            continue
         try:
             if path.suffix.lower() == ".pdf":
                 result = ingest_pdf(path, domain=domain, source=source, extra_metadata={"url": doc.get("url")})

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from loguru import logger
-from core.database import get_db, SessionLocal, Conversation, Message
+from core.database import get_db, SessionLocal, Conversation, Message, UserDocument
 from api.core.dependencies import CurrentUser
 from api.repositories.conversation_repo import ConversationRepository
 from api.schemas.chat import ChatRequest, ChatResponse, Citation, FeedbackRequest, DemoRequest
@@ -14,7 +14,7 @@ from retrieval.reranker import confidence_label_for_score
 from core.domains import DOMAINS
 from processing.doc_type import DOC_TYPES
 from generation.llm_client import generate, generate_stream
-from generation.prompt_builder import build_prompt, format_citations, extract_suggested_queries
+from generation.prompt_builder import build_prompt, build_no_context_prompt, format_citations, extract_suggested_queries
 
 
 router = APIRouter(prefix="/chat", tags=["Chatbot"])
@@ -24,11 +24,6 @@ router = APIRouter(prefix="/chat", tags=["Chatbot"])
 # peut retarder la fermeture de la connexion — ce qui laisserait le client bloqué
 # en attente de la fin du flux.
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive", "Content-Encoding": "identity"}
-_NO_CONTEXT_ANSWER = (
-    "Aucun texte juridique pertinent n'a été trouvé dans les corpus disponibles pour cette question. "
-    "Essayez de préciser le domaine concerné (travail, fiscal, sociétés, données personnelles) ou de reformuler "
-    "avec des termes plus spécifiques. Pour une recherche officielle directe : www.sgg.gov.ma, www.tax.gov.ma ou www.cndp.ma."
-)
 
 def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
@@ -67,7 +62,13 @@ async def chat_demo(request: DemoRequest, http_request: Request):
         None, lambda: retrieve(query=request.query, top_k=4, user_id=None)
     )
     if not chunks:
-        return {"answer": _NO_CONTEXT_ANSWER, "citations": [], "confidence_label": "insuffisant", "domains_searched": domains_searched, "remaining": remaining}
+        system_prompt, user_message = build_no_context_prompt(request.query, user_role="particulier")
+        try:
+            raw = await loop.run_in_executor(None, lambda: generate(system_prompt, user_message))
+        except Exception as e:
+            logger.error(f"Erreur démo (sans contexte) : {e}")
+            raise HTTPException(503, "Le service de génération est momentanément indisponible. Réessayez.")
+        return {"answer": raw, "citations": [], "confidence_label": "insuffisant", "domains_searched": domains_searched, "remaining": remaining}
     system_prompt, user_message = build_prompt(request.query, chunks, user_role="particulier")
     try:
         raw = await loop.run_in_executor(None, lambda: generate(system_prompt, user_message))
@@ -83,9 +84,23 @@ def _validate_filters(request: ChatRequest):
     if request.doc_type and request.doc_type not in DOC_TYPES:
         raise HTTPException(400, f"Type de document invalide : {request.doc_type} (attendu : {', '.join(DOC_TYPES)})")
 
+def _resolve_document_scope(request: ChatRequest, current_user, db: Session) -> list[str] | None:
+    """Si `document_id` est fourni ("discuter avec ce document"), vérifie que
+    le document appartient bien à l'utilisateur et qu'il est indexé, puis
+    renvoie son domaine comme périmètre forcé de la recherche."""
+    if not request.document_id:
+        return None
+    doc = db.query(UserDocument).filter(UserDocument.id == request.document_id, UserDocument.user_id == current_user.id).first()
+    if not doc:
+        raise HTTPException(404, "Document introuvable.")
+    if doc.status != "indexed":
+        raise HTTPException(400, "Ce document n'est pas encore indexé (ou son indexation a échoué).")
+    return [doc.domain]
+
 @router.post("/", response_model=ChatResponse)
 async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = Depends(get_db)):
     _validate_filters(request)
+    document_domain = _resolve_document_scope(request, current_user, db)
 
     try:
         logger.info(f"Chat [{current_user.role}]: {request.query[:60]}")
@@ -94,13 +109,14 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = De
         repo.add_message(conv.id, "user", request.query)
         history, _ = repo.get_history(conv.id, 8)
         history = [{"role": m.role, "content": m.content} for m in history][:-1]
-        domains = [request.domain] if request.domain else None
-        chunks, conf_score, conf_label, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year)
+        domains = document_domain or ([request.domain] if request.domain else None)
+        chunks, conf_score, conf_label, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year, document_id=request.document_id)
+        role = current_user.role if request.adapt_to_profile else "particulier"
         if not chunks:
-            answer = _NO_CONTEXT_ANSWER
+            system_prompt, user_message = build_no_context_prompt(request.query, user_role=role, lang=request.lang)
+            answer = generate(system_prompt, user_message)
             msg = repo.add_message(conv.id, "assistant", answer, citations=[], domains_searched=domains_searched, confidence_score=0.0)
             return ChatResponse(answer=answer, citations=[], domains_searched=domains_searched, query=request.query, conversation_id=conv.id, message_id=msg.id, confidence_score=0.0, confidence_label="insuffisant")
-        role = current_user.role if request.adapt_to_profile else "particulier"
         system_prompt, user_message = build_prompt(request.query, chunks, user_role=role, conversation_history=history, lang=request.lang)
         raw = generate(system_prompt, user_message)
         answer, suggested = extract_suggested_queries(raw)
@@ -126,6 +142,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
       - {"type":"error", "detail": "..."}   en cas d'échec de génération
     """
     _validate_filters(request)
+    document_domain = _resolve_document_scope(request, current_user, db)
 
     logger.info(f"Chat stream [{current_user.role}]: {request.query[:60]}")
     repo = ConversationRepository(db)
@@ -133,24 +150,42 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
     repo.add_message(conv.id, "user", request.query)
     history, _ = repo.get_history(conv.id, 8)
     history = [{"role": m.role, "content": m.content} for m in history][:-1]
-    domains = [request.domain] if request.domain else None
+    domains = document_domain or ([request.domain] if request.domain else None)
     conv_id = conv.id
     role = current_user.role if request.adapt_to_profile else "particulier"
     # Le retrieval est bloquant (embeddings/BM25/rerank) — on le sort de la boucle
     # événementielle pour ne pas la geler pendant ~2 s.
     loop = asyncio.get_event_loop()
     chunks, conf_score, conf_label, domains_searched = await loop.run_in_executor(
-        None, lambda: retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year)
+        None, lambda: retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year, document_id=request.document_id)
     )
 
     if not chunks:
-        msg = repo.add_message(conv_id, "assistant", _NO_CONTEXT_ANSWER, citations=[], domains_searched=domains_searched, confidence_score=0.0)
-        msg_id = msg.id
-        def empty_stream():
+        no_ctx_system, no_ctx_user = build_no_context_prompt(request.query, user_role=role, lang=request.lang)
+
+        def no_context_stream():
             yield _sse({"type": "meta", "conversation_id": conv_id, "citations": [], "domains_searched": domains_searched, "confidence_score": 0.0, "confidence_label": "insuffisant", "adapted_for_role": role})
-            yield _sse({"type": "token", "content": _NO_CONTEXT_ANSWER})
+            full = ""
+            try:
+                for token in generate_stream(no_ctx_system, no_ctx_user):
+                    full += token
+                    yield _sse({"type": "token", "content": token})
+            except Exception as e:
+                logger.error(f"Erreur streaming chat (sans contexte) : {e}")
+                yield _sse({"type": "error", "detail": "La génération a échoué. Réessayez."})
+                return
+            msg_id = None
+            db2 = SessionLocal()
+            try:
+                msg = ConversationRepository(db2).add_message(conv_id, "assistant", full, citations=[], domains_searched=domains_searched, confidence_score=0.0)
+                msg_id = msg.id
+            except Exception as e:
+                logger.error(f"Persistance message stream (sans contexte) échouée : {e}")
+            finally:
+                db2.close()
             yield _sse({"type": "done", "message_id": msg_id, "suggested_queries": []})
-        return StreamingResponse(empty_stream(), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+        return StreamingResponse(no_context_stream(), media_type="text/event-stream", headers=_SSE_HEADERS)
 
     raw_citations = format_citations(chunks)
     system_prompt, user_message = build_prompt(request.query, chunks, user_role=role, conversation_history=history, lang=request.lang)

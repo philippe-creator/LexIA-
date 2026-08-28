@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FileText, Download, FileType, Eye, AlertCircle } from "lucide-react";
-import { legalDocumentService } from "../services/api";
+import { legalDocumentService, extractErrorMessage } from "../services/api";
 
 // Rend un bloc de la trame renvoyée par l'API dans l'aperçu à l'écran.
 function PreviewBlock({ block }) {
@@ -81,7 +81,7 @@ export default function LegalDocumentGenerator() {
       const res = await legalDocumentService.preview(activeKey, formData);
       setPreview(res.data);
     } catch (e) {
-      setError(e.response?.data?.detail || "Erreur lors de la génération.");
+      setError(extractErrorMessage(e, "Erreur lors de la génération."));
     } finally { setLoading(false); }
   };
 

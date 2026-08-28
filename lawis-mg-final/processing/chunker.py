@@ -20,6 +20,28 @@ ARTICLE_PATTERNS = [
 CHUNK_SIZE = 800        # taille cible en caractères
 CHUNK_OVERLAP = 150     # chevauchement entre chunks consécutifs
 
+# Une ligne de sommaire ("ARTICLE 247 BIS .......... 464") matche le motif
+# d'en-tête d'article ci-dessus (commence par "article N") et se retrouvait
+# indexée comme si c'était le texte réel de l'article — sans aucun contenu
+# juridique. Un texte de loi ne contient jamais de suite de points de
+# guidage typographiques ; une table des matières, systématiquement.
+_TOC_LEADER = re.compile(r"\.{4,}\s*\d+")
+
+
+def _looks_like_toc(text: str) -> bool:
+    # Le découpage par en-tête d'article isole souvent CHAQUE ligne de
+    # sommaire dans son propre chunk (une seule occurrence du motif) — un
+    # simple comptage ">= 2" les rate. On mesure plutôt la part du texte
+    # occupée par le "guidage de points" : dans une vraie ligne de sommaire
+    # ("ARTICLE 247 BIS .......... 464"), les points dominent le texte ;
+    # dans un article réel, une éventuelle ellipse ("[...]") est marginale.
+    matches = _TOC_LEADER.findall(text)
+    if not matches:
+        return False
+    if len(matches) >= 2:
+        return True
+    return sum(len(m) for m in matches) / max(len(text), 1) > 0.15
+
 
 @dataclass
 class Chunk:
@@ -59,7 +81,7 @@ def split_by_articles(text: str) -> list[str]:
                 sections.append(parts[i].strip())
             i += 1
 
-    return [s for s in sections if len(s.strip()) > 30]
+    return [s for s in sections if len(s.strip()) > 30 and not _looks_like_toc(s)]
 
 
 def split_by_size(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
@@ -119,7 +141,7 @@ def chunk_document(text: str, metadata: dict = None) -> list[Chunk]:
 
     # Fallback : découpage par taille
     logger.debug("Pas de structure article détectée — découpage par taille")
-    size_chunks = split_by_size(text)
+    size_chunks = [c for c in split_by_size(text) if not _looks_like_toc(c)]
     return [
         Chunk(text=c, metadata={**metadata, "chunk_idx": str(i), "method": "size"})
         for i, c in enumerate(size_chunks)

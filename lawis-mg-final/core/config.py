@@ -17,12 +17,39 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 45
+    # Plus généreux qu'un reset de mot de passe : un utilisateur peut mettre
+    # un moment à consulter son email juste après l'inscription.
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440  # 24h
     BCRYPT_ROUNDS: int = 12
+    # Connexion "Se connecter avec Google" (Google Identity Services, flux
+    # ID-token — pas d'échange côté serveur, donc pas besoin du client secret ici).
+    GOOGLE_CLIENT_ID: str = ""
+    # OCR des PDF scannés via Google Cloud Vision (plus rapide/précis que le
+    # Tesseract local). Optionnel : si vide, l'app utilise Tesseract comme
+    # avant — et bascule automatiquement dessus si Vision échoue en cours de
+    # route (quota épuisé, clé désactivée...), voir ingestion/ocr/pdf_extractor.py.
+    GOOGLE_VISION_API_KEY: str = ""
+    # Base publique du frontend — sert à construire le lien de réinitialisation
+    # de mot de passe envoyé par email ({FRONTEND_URL}/reset-password?token=...).
+    FRONTEND_URL: str = "http://localhost:3000"
+    # Envoi d'email (vérification de compte, mot de passe oublié, notifications
+    # de veille) — via services/notifications/email.send_email(). Deux chemins :
+    # BREVO_API_KEY (API HTTP, port 443, prioritaire) ou SMTP_HOST (relais SMTP
+    # classique, en repli). Si aucun des deux n'est configuré, send_email()
+    # échoue silencieusement (log un avertissement) plutôt que de planter.
+    BREVO_API_KEY: str = ""
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_USE_TLS: bool = True
     DATABASE_URL: str = "sqlite:///./data/lexia.db"
-    LLM_PROVIDER: str = "openai"  # openai | gemini | openrouter | groq
+    LLM_PROVIDER: str = "groq"  # openai | gemini | openrouter | groq
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
-    GROQ_MODELS: str = ""
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
+    GROQ_MODELS: str = "openai/gpt-oss-120b"
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_MODEL: str = "meta-llama/llama-3.3-70b-instruct:free"
     # Modèles de secours (liste séparée par virgules), essayés dans l'ordre si le
@@ -67,6 +94,11 @@ class Settings(BaseSettings):
     # binaires ne sont pas globalement enregistrés dans le PATH du processus Python.
     POPPLER_PATH: str = ""
     TESSERACT_CMD: str = ""
+    # Dossier des modèles de langue (*.traineddata) si différent de celui
+    # embarqué avec l'exécutable Tesseract — utile sur ce poste où fra/ara ont
+    # été installés dans un dossier accessible en écriture sans droits admin,
+    # au lieu de tessdata/ sous Program Files (protégé).
+    TESSDATA_PREFIX: str = ""
     VECTOR_STORE_PROVIDER: str = "chroma"
     CHROMA_PERSIST_DIR: str = "./data/vector_stores"
     RAW_DATA_DIR: str = "./data/raw"
@@ -84,8 +116,12 @@ class Settings(BaseSettings):
     RETRIEVAL_TIMEOUT_SECONDS: int = 60
     RATE_LIMIT_REQUESTS: int = 60
     RATE_LIMIT_WINDOW_SECONDS: int = 60
+    # Limite dédiée, plus stricte, sur les routes d'authentification — la limite
+    # globale (60/60s) laisse passer bien trop de tentatives de mot de passe.
+    AUTH_RATE_LIMIT_REQUESTS: int = 10
+    AUTH_RATE_LIMIT_WINDOW_SECONDS: int = 300
     MAX_UPLOAD_SIZE_MB: int = 50
-    ALLOWED_EXTENSIONS: list[str] = ["pdf", "docx", "doc", "txt", "html"]
+    ALLOWED_EXTENSIONS: list[str] = ["pdf", "docx", "doc", "txt"]
     WATCH_INTERVAL_HOURS: int = 24
     SGG_BASE_URL: str = "https://www.sgg.gov.ma/BO.aspx"
     CNDP_BASE_URL: str = "https://www.cndp.ma"

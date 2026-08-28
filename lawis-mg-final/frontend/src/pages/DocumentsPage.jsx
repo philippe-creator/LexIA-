@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Upload, Trash2, FileText, CheckCircle, AlertCircle, Clock, Loader2, ShieldCheck, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { documentService } from "../services/api";
+import { documentService, extractErrorMessage } from "../services/api";
 const STATUS = { pending:{icon:Clock,color:"#D97706",label:"En attente"}, processing:{icon:Loader2,color:"#2563EB",label:"Traitement..."}, indexed:{icon:CheckCircle,color:"#16A34A",label:"Indexé"}, error:{icon:AlertCircle,color:"#DC2626",label:"Erreur"} };
 const DOMAINS = ["divers","travail","fiscal","societes","donnees_personnelles","jurisprudence"];
 export default function DocumentsPage() {
@@ -17,7 +17,7 @@ export default function DocumentsPage() {
   const handleAudit = async (id) => {
     setAuditing(id); setAuditError(null); setAudit(null);
     try { const r = await documentService.audit(id); setAudit(r.data); }
-    catch(err) { setAuditError(err.response?.data?.detail || "L'analyse a échoué. Réessayez."); }
+    catch(err) { setAuditError(extractErrorMessage(err, "L'analyse a échoué. Réessayez.")); }
     finally { setAuditing(null); }
   };
   const handleUpload = async (e) => {
@@ -25,7 +25,7 @@ export default function DocumentsPage() {
     setUploading(true); setError(null);
     const fd=new FormData(); fd.append("file",file); fd.append("domain",domain);
     try { await documentService.upload(fd); const r=await documentService.list(); setDocs(r.data); }
-    catch(err) { setError(err.response?.data?.detail||"Erreur upload."); }
+    catch(err) { setError(extractErrorMessage(err, "Erreur upload.")); }
     finally { setUploading(false); }
   };
   const handleDelete = async (id) => {
@@ -63,7 +63,7 @@ export default function DocumentsPage() {
                   <span className="doc-name">{doc.filename}</span>
                   <span className="doc-meta">{doc.domain} • {Math.round(doc.file_size/1024)}KB • {doc.chunk_count} chunks</span>
                 </div>
-                <div className="doc-status" style={{color:cfg.color}}><Icon size={13} className={doc.status==="processing"?"spin":""}/> {cfg.label}</div>
+                <div className="doc-status" style={{color:cfg.color}} title={doc.status==="error"?doc.error_message:undefined}><Icon size={13} className={doc.status==="processing"?"spin":""}/> {cfg.label}</div>
                 {doc.status==="indexed" && (
                   <button className="doc-audit" onClick={()=>handleAudit(doc.id)} disabled={auditing===doc.id} title="Auditer ce contrat">
                     {auditing===doc.id ? <Loader2 size={13} className="spin"/> : <ShieldCheck size={13}/>} Auditer

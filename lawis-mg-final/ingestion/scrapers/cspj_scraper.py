@@ -6,6 +6,7 @@ Cible  : arrêts par chambre (sociale, commerciale, administrative, civile, pén
 import os
 import time
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from pathlib import Path
 from loguru import logger
@@ -19,13 +20,17 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 }
 
+# Même souci de chaîne TLS incomplète côté serveur que cnss.ma — voir le
+# commentaire dans ingestion/scrapers/cnss_scraper.py.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 # Chambres de la Cour de cassation — à mapper par domaine prioritaire
 CHAMBRES = {
     "sociale": "travail",          # → enrichit le corpus droit du travail
     "commerciale": "societes",     # → enrichit le corpus droit des sociétés
     "administrative": "fiscal",    # → enrichit le corpus droit fiscal
+    "penale": "penal",             # → enrichit le corpus droit pénal
     "civile": "jurisprudence",
-    "penale": "jurisprudence",
     "statut-personnel": "jurisprudence",
 }
 
@@ -35,7 +40,7 @@ def fetch_page(url: str, params: dict = None) -> BeautifulSoup | None:
     if not same_origin(url, BASE_URL):
         logger.warning(f"URL hors domaine ignorée : {url}")
         return None
-    resp = requests.get(url, headers=HEADERS, params=params, timeout=20)
+    resp = requests.get(url, headers=HEADERS, params=params, timeout=20, verify=False)
     resp.raise_for_status()
     return BeautifulSoup(resp.text, "lxml")
 
@@ -121,12 +126,19 @@ def scrape_cspj(max_pages_per_chambre: int = 5) -> list[dict]:
                 decision_id = decision["link"].split("/")[-1] or f"decision_{len(collected)}"
                 dest = output_subdir / f"{decision_id}.txt"
 
-                if not dest.exists():
+                # Capturé AVANT l'écriture : sinon dest.exists() est toujours vrai
+                # une fois le fichier créé juste en dessous, et is_new est toujours
+                # faux — aucune décision n'est alors jamais indexée par la veille
+                # (run_watch_cycle filtre sur is_new).
+                was_new = not dest.exists()
+                if was_new:
                     text = fetch_decision_text(decision["link"])
                     if text:
                         dest.write_text(text, encoding="utf-8")
                         logger.info(f"Arrêt sauvegardé : {dest.name}")
                         time.sleep(0.5)
+                    else:
+                        was_new = False
 
                 collected.append({
                     "domain": domaine,
@@ -135,7 +147,7 @@ def scrape_cspj(max_pages_per_chambre: int = 5) -> list[dict]:
                     "title": decision["title"],
                     "url": decision["link"],
                     "local_path": str(dest),
-                    "is_new": not dest.exists(),
+                    "is_new": was_new,
                 })
 
             time.sleep(1)

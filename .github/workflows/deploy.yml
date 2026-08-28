@@ -1,0 +1,28 @@
+name: Déploiement automatique
+
+# Se déclenche à chaque push sur main, ou manuellement depuis l'onglet
+# "Actions" de GitHub (workflow_dispatch) si besoin de redéployer sans
+# nouveau commit (ex. après avoir juste changé .env sur le serveur).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Déployer sur le serveur via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            cd ~/lawis-mg-v2
+            git pull origin main
+            cd lawis-mg-final
+            docker compose up -d --build
+            docker image prune -f

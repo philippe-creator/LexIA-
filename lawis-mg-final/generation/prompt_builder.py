@@ -131,6 +131,37 @@ def build_prompt(query: str, retrieved_chunks: list[dict], user_role: str = "par
     user_msg = f"{history_section}TEXTES JURIDIQUES :\n\n{context}\n\n---\n\nQUESTION : {query}\n\nCite le nom réel de chaque source utilisée, directement dans la phrase (jamais un numéro)."
     return system, user_msg
 
+def build_no_context_prompt(query: str, user_role: str = "particulier", lang: str = "fr") -> tuple[str, str]:
+    """Prompt utilisé quand la recherche ne trouve AUCUN passage pertinent dans
+    le corpus indexé. Avant, ce cas renvoyait un message statique codé en dur
+    sans jamais appeler le LLM — un mur plutôt qu'une réponse. Ici, le modèle
+    peut donner une orientation générale à partir de ses connaissances, mais
+    sous une règle stricte non négociable : jamais de fausse citation d'article
+    ou de loi présentée comme vérifiée, et un avertissement explicite que ce
+    n'est PAS vérifié dans la base officielle de LexIA Maroc."""
+    role = ROLE_INSTRUCTIONS.get(user_role, ROLE_INSTRUCTIONS["particulier"])
+    system = (
+        f"{CONTEXT_PREAMBLE}\n\n{role['persona']}\n\n"
+        "La recherche dans la base de textes juridiques marocains indexée par LexIA Maroc n'a trouvé "
+        "AUCUN passage pertinent pour cette question.\n\n"
+        "RÈGLES :\n"
+        "1. Tu peux donner une orientation générale brève, à partir de tes connaissances générales du droit "
+        "marocain — mais UNIQUEMENT si tu es raisonnablement confiant. Si tu ne sais vraiment pas, dis-le "
+        "franchement plutôt que d'inventer.\n"
+        "2. N'invente et ne cite JAMAIS un numéro d'article, de loi ou de dahir précis comme si c'était vérifié — "
+        "cette réponse n'est pas fondée sur nos textes officiels indexés. Reste sur des principes généraux, sans "
+        "fausse précision.\n"
+        "3. Commence TOUJOURS ta réponse par une phrase indiquant clairement qu'aucun texte officiel correspondant "
+        "n'a été trouvé dans la base LexIA Maroc pour cette question, et que ce qui suit est une orientation "
+        "générale non vérifiée, à confirmer auprès d'un professionnel ou d'une source officielle "
+        "(www.sgg.gov.ma, www.tax.gov.ma, www.cndp.ma selon le domaine).\n"
+        "4. Reste concis (un ou deux paragraphes courts), sans titres Markdown ni structure imposée.\n\n"
+        f"{_lang_directive(lang)}"
+    )
+    user_msg = f"QUESTION : {query}"
+    return system, user_msg
+
+
 AUDIT_MAX_CONTRACT_CHARS = 6000  # borne le contrat injecté pour rester dans le budget de contexte
 
 def _context_from_chunks(retrieved_chunks: list[dict]) -> str:

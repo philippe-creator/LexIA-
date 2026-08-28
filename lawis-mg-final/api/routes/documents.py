@@ -1,3 +1,4 @@
+import asyncio
 import hashlib, uuid
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -21,13 +22,12 @@ AUDIT_TOPICS = [
     "indemnité de licenciement et rupture abusive du contrat",
     "durée légale du travail hebdomadaire et heures supplémentaires",
 ]
-ALLOWED_MIME = {"application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain","text/html"}
+ALLOWED_MIME = {"application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"}
 MIME_EXTENSIONS = {
     "application/pdf": {".pdf"},
     "application/msword": {".doc"},
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {".docx"},
     "text/plain": {".txt"},
-    "text/html": {".html", ".htm"},
 }
 MAGIC_SIGNATURES = {
     "application/pdf": (b"%PDF-",),
@@ -68,12 +68,18 @@ async def upload(file: UploadFile = File(...), domain: str = Form("divers"), cur
     (user_dir / safe_name).write_bytes(data)
     doc = UserDocument(user_id=current_user.id, filename=safe_name, original_filename=file.filename, file_path=str(user_dir/safe_name), file_size=len(data), mime_type=file.content_type, domain=domain, checksum=checksum, status="pending")
     db.add(doc); db.commit(); db.refresh(doc)
-    try: await _index(doc, db)
+    # _index est bloquant (OCR/embeddings, CPU) : sur un scan de plusieurs
+    # dizaines de pages, ça peut prendre plusieurs minutes. Exécuté inline sur
+    # la boucle asyncio, ça gèle TOUT le serveur pour tous les utilisateurs
+    # pendant ce temps (constaté en conditions réelles : /health ne répondait
+    # plus le temps de l'OCR). asyncio.to_thread le sort de la boucle
+    # événementielle — les autres requêtes restent servies pendant l'upload.
+    try: await asyncio.to_thread(_index, doc, db)
     except Exception as e: doc.status="error"; doc.error_message=str(e); db.commit()
     db.refresh(doc)
     return {"id":doc.id,"filename":doc.original_filename,"status":doc.status,"domain":doc.domain,"chunk_count":doc.chunk_count,"file_size":doc.file_size}
 
-async def _index(doc, db):
+def _index(doc, db):
     from ingestion.ocr.pdf_extractor import extract_text
     from ingestion.pipeline import ingest_text
     from datetime import datetime

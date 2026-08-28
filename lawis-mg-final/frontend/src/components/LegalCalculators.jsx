@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Calculator, Briefcase, Clock, Wallet } from "lucide-react";
-import { calculatorService } from "../services/api";
+import { calculatorService, extractErrorMessage } from "../services/api";
 
 const TABS = [
   { key: "severance", label: "Indemnité de licenciement", icon: Briefcase },
@@ -26,7 +26,7 @@ function SeveranceCalculator() {
     try {
       const res = await calculatorService.severancePay({ monthly_salary: parseFloat(salary), years_of_service: parseFloat(years) });
       setResult(res.data);
-    } catch (e) { setError(e.response?.data?.detail || "Erreur de calcul."); }
+    } catch (e) { setError(extractErrorMessage(e, "Erreur de calcul.")); }
     finally { setLoading(false); }
   };
 
@@ -73,7 +73,7 @@ function NoticePeriodCalculator() {
     try {
       const res = await calculatorService.noticePeriod({ category, years_of_service: parseFloat(years) });
       setResult(res.data);
-    } catch (e) { setError(e.response?.data?.detail || "Erreur de calcul."); }
+    } catch (e) { setError(extractErrorMessage(e, "Erreur de calcul.")); }
     finally { setLoading(false); }
   };
 
@@ -115,7 +115,7 @@ function NetSalaryCalculator() {
     try {
       const res = await calculatorService.netSalary({ gross_salary: parseFloat(gross) });
       setResult(res.data);
-    } catch (e) { setError(e.response?.data?.detail || "Erreur de calcul."); }
+    } catch (e) { setError(extractErrorMessage(e, "Erreur de calcul.")); }
     finally { setLoading(false); }
   };
 

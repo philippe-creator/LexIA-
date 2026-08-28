@@ -3,12 +3,16 @@ Module OCR — extraction de texte depuis PDFs images (Bulletin Officiel)
 Stratégie : tente d'abord l'extraction texte natif (PyMuPDF),
             si le PDF est en mode image → fallback OCR (Tesseract)
 """
+import base64
+import io
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from loguru import logger
 
 import fitz          # PyMuPDF — extraction texte natif
 import pytesseract
+import requests
 from pdf2image import convert_from_path
 from PIL import Image
 
@@ -21,6 +25,15 @@ from core.config import settings
 _POPPLER_PATH = settings.POPPLER_PATH or None
 if settings.TESSERACT_CMD:
     pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
+if settings.TESSDATA_PREFIX:
+    # Dossier des modèles de langue (fra.traineddata, ara.traineddata...),
+    # utile quand il diffère de celui livré avec l'exécutable (ex. Program
+    # Files protégé en écriture sans droits admin sur ce poste). Passé via
+    # la variable d'environnement lue nativement par tesseract.exe — plus
+    # fiable que --tessdata-dir en argument CLI, dont le quoting casse sur
+    # un chemin contenant des espaces (ex. "C:\Users\A D M I N\...").
+    import os
+    os.environ["TESSDATA_PREFIX"] = settings.TESSDATA_PREFIX
 
 # Langues OCR : français + arabe (le BO marocain est bilingue)
 OCR_LANGS = "fra+ara"
@@ -52,15 +65,77 @@ def extract_text_native(pdf_path: Path) -> tuple[str, list[int]]:
     return _join_with_offsets(text_pages)
 
 
+# Nombre de pages OCRisées en parallèle. Que ce soit Tesseract (sous-processus
+# par page, pas concerné par le GIL) ou Google Vision (appel réseau), les
+# pages tournent réellement en parallèle. Plafonné à 8 pour ne pas saturer une
+# petite machine ni déclencher le quota par seconde de l'API Vision.
+_OCR_WORKERS = min(8, os.cpu_count() or 4)
+
+_VISION_URL = "https://vision.googleapis.com/v1/images:annotate"
+
+
+def _ocr_page_tesseract(image: Image.Image) -> str:
+    return pytesseract.image_to_string(image, lang=OCR_LANGS)
+
+
+def _ocr_page_google_vision(image: Image.Image) -> str:
+    """OCR d'une page via l'API Google Cloud Vision (DOCUMENT_TEXT_DETECTION,
+    adapté aux documents denses type texte juridique). Lève une exception sur
+    tout échec (clé absente, quota dépassé, erreur réseau, réponse d'erreur) —
+    à charge de l'appelant de retomber sur Tesseract, voir `_ocr_page`."""
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    payload = {
+        "requests": [{
+            "image": {"content": base64.b64encode(buf.getvalue()).decode()},
+            "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
+            "imageContext": {"languageHints": ["fr", "ar"]},
+        }]
+    }
+    resp = requests.post(_VISION_URL, params={"key": settings.GOOGLE_VISION_API_KEY}, json=payload, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()["responses"][0]
+    if "error" in data:
+        raise RuntimeError(data["error"].get("message", "Erreur Google Vision"))
+    return data.get("fullTextAnnotation", {}).get("text", "")
+
+
 def extract_text_ocr(pdf_path: Path) -> tuple[str, list[int]]:
-    """OCR sur chaque page du PDF (pour PDFs images / fac-similés scannés)."""
+    """OCR sur chaque page du PDF (pour PDFs images / fac-similés scannés).
+
+    Utilise Google Vision quand `GOOGLE_VISION_API_KEY` est configurée (plus
+    rapide, plus précis — un modèle cloud plutôt qu'un moteur CPU local), avec
+    repli AUTOMATIQUE sur Tesseract page par page dès que Vision échoue pour
+    quelque raison que ce soit (clé absente, quota épuisé, panne réseau...) :
+    aucune intervention nécessaire le jour où Vision n'est plus disponible,
+    le pipeline continue de fonctionner avec le moteur local existant.
+
+    Deux optimisations supplémentaires par rapport à un rendu séquentiel :
+    - dpi=200 (au lieu de 300) : suffisant pour du texte imprimé, ~2x plus
+      rapide à rendre et à OCRiser, perte de précision négligeable en pratique.
+    - pages traitées en parallèle (ThreadPoolExecutor).
+    """
     text_pages = []
     try:
-        images = convert_from_path(str(pdf_path), dpi=300, poppler_path=_POPPLER_PATH)
-        for i, image in enumerate(images):
-            logger.debug(f"OCR page {i+1}/{len(images)} : {pdf_path.name}")
-            text = pytesseract.image_to_string(image, lang=OCR_LANGS)
-            text_pages.append(text)
+        images = convert_from_path(str(pdf_path), dpi=200, poppler_path=_POPPLER_PATH)
+
+        def _ocr_page(args):
+            i, image = args
+            if settings.GOOGLE_VISION_API_KEY:
+                try:
+                    text = _ocr_page_google_vision(image)
+                    logger.debug(f"OCR (Google Vision) page {i+1}/{len(images)} : {pdf_path.name}")
+                    return i, text
+                except Exception as e:
+                    logger.warning(f"Google Vision indisponible page {i+1} ({e}) — repli sur Tesseract.")
+            logger.debug(f"OCR (Tesseract) page {i+1}/{len(images)} : {pdf_path.name}")
+            return i, _ocr_page_tesseract(image)
+
+        results = [None] * len(images)
+        with ThreadPoolExecutor(max_workers=_OCR_WORKERS) as executor:
+            for i, text in executor.map(_ocr_page, enumerate(images)):
+                results[i] = text
+        text_pages = results
     except Exception as e:
         logger.error(f"OCR impossible sur {pdf_path.name} : {e}")
     return _join_with_offsets(text_pages)

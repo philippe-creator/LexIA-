@@ -72,10 +72,23 @@ def index_document(text: str, domain: str, metadata: dict = None, page_offsets: 
     # des collisions d'IDs (upsert rejeté). L'index garantit l'unicité même entre
     # deux chunks byte-identiques ; le contenu complet garde l'idempotence lors
     # d'une ré-indexation du même document.
+    #
+    # Cas particulier des documents importés par un utilisateur (source=
+    # "user_upload") : SANS `document_id` dans le hash, deux utilisateurs qui
+    # importent le même fichier (même nom, même contenu — un texte officiel
+    # téléchargé par les deux) calculent des IDs identiques. Le second upsert
+    # écrase alors silencieusement les métadonnées (document_id, user_id) du
+    # premier dans Chroma : son document reste "indexé" en base SQL mais
+    # devient introuvable en pratique — contradiction avec la promesse de la
+    # politique de confidentialité ("vos documents restent strictement
+    # privés"). `document_id` est un UUID unique par import : l'inclure dans
+    # le hash isole chaque upload sans toucher à l'idempotence du corpus
+    # partagé (qui ne porte jamais de document_id).
     import hashlib
+    doc_id = metadata.get("document_id", "")
     ids = [
         hashlib.sha256(
-            f"{metadata.get('filename', '')}::{c.metadata.get('chunk_idx', i)}::{c.text}".encode()
+            f"{metadata.get('filename', '')}::{doc_id}::{c.metadata.get('chunk_idx', i)}::{c.text}".encode()
         ).hexdigest()[:32]
         for i, c in enumerate(chunks)
     ]

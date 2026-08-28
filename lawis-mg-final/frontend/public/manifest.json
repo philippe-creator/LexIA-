@@ -1,0 +1,15 @@
+{
+  "short_name": "LexIA Maroc",
+  "name": "LexIA Maroc — Veille juridique IA",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0F1F3D",
+  "background_color": "#0F1F3D"
+}

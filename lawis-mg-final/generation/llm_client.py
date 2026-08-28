@@ -13,6 +13,8 @@ plus rebasculer sans casser l'affichage côté client.
 import json
 from collections.abc import Iterator
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from loguru import logger
 from core.config import settings
 
@@ -20,6 +22,14 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_URL_TMPL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+# Coupures réseau transitoires (DNS/TCP/TLS qui échoue avant même d'atteindre le
+# fournisseur) observées en pratique sur ce type de connexion — 2 essais
+# supplémentaires au niveau socket, avant que le code applicatif ne voie une
+# ConnectionError et bascule sur le modèle suivant de la cascade.
+_session = requests.Session()
+_retry = Retry(total=2, connect=2, read=1, backoff_factor=0.5)
+_session.mount("https://", HTTPAdapter(max_retries=_retry))
 
 # Statuts pour lesquels réessayer avec le modèle suivant a du sens.
 # 401 (clé invalide) est fatal : changer de modèle n'y changera rien.
@@ -65,7 +75,7 @@ def _generate_openai(system_prompt: str, user_message: str, model: str) -> str:
     }
     logger.info(f"OpenAI → {model}")
     try:
-        resp = requests.post(OPENAI_URL, headers=headers, json=payload, timeout=60)
+        resp = _session.post(OPENAI_URL, headers=headers, json=payload, timeout=60)
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
         logger.info(f"Réponse reçue ({len(content)} chars)")
@@ -89,7 +99,7 @@ def _generate_gemini(system_prompt: str, user_message: str, model: str) -> str:
     }
     logger.info(f"Gemini → {model}")
     try:
-        resp = requests.post(url, params={"key": settings.GEMINI_API_KEY}, json=payload, timeout=60)
+        resp = _session.post(url, params={"key": settings.GEMINI_API_KEY}, json=payload, timeout=60)
         resp.raise_for_status()
         data = resp.json()
         content = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -120,7 +130,7 @@ def _generate_openrouter(system_prompt: str, user_message: str, model: str) -> s
     }
     logger.info(f"OpenRouter → {model}")
     try:
-        resp = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
+        resp = _session.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
         logger.info(f"Réponse reçue ({len(content)} chars)")
@@ -145,7 +155,7 @@ def _generate_groq(system_prompt: str, user_message: str, model: str) -> str:
     }
     logger.info(f"Groq → {model}")
     try:
-        resp = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
+        resp = _session.post(GROQ_URL, headers=headers, json=payload, timeout=60)
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
         logger.info(f"Réponse reçue ({len(content)} chars)")
@@ -208,7 +218,7 @@ def _stream_openai_compatible(url: str, headers: dict, model: str, system_prompt
     }
     logger.info(f"{provider} (stream) → {model}")
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=(10, 120), stream=True)
+        resp = _session.post(url, headers=headers, json=payload, timeout=(10, 120), stream=True)
         resp.raise_for_status()
     except requests.exceptions.Timeout:
         raise LLMError(f"Timeout {provider} — réessayez.", retryable=True)

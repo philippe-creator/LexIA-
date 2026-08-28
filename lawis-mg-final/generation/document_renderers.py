@@ -81,6 +81,14 @@ def render_pdf(document: dict) -> bytes:
         if style == "spacer":
             pdf.ln(4)
             continue
+        # fpdf2 (2.8.7) a un bug reproductible : quand un multi_cell() qui vient
+        # de replier son texte sur 2 lignes est immédiatement suivi d'un autre
+        # multi_cell(), le second voit son texte tronqué dans le flux PDF rendu
+        # (le texte Python, lui, est intact — le bug est interne à fpdf2). Forcer
+        # la position avant CHAQUE multi_cell neutralise le problème. Reproduit
+        # et corrigé sur « Il/Elle est en poste depuis le... » (attestation de
+        # travail) qui sortait tronqué à « Il/Elle est e ».
+        pdf.set_xy(pdf.l_margin, pdf.get_y())
         if style == "title":
             pdf.set_font("Helvetica", "B", 15)
             pdf.multi_cell(width, 8, text, align="C")
@@ -103,8 +111,13 @@ def render_pdf(document: dict) -> bytes:
             pdf.multi_cell(width, 4, text, align="L")
             pdf.set_text_color(0, 0, 0)
         else:  # body
+            # align="J" (justifié) a un bug de rendu dans fpdf2 sur certaines
+            # phrases courtes tenant sur une seule ligne : le texte est purement
+            # perdu (pas juste mal réparti) — reproduit avec « Il/Elle est en
+            # poste depuis le... » dans l'attestation de travail. Alignement à
+            # gauche : moins "propre" visuellement, mais fiable.
             pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(width, 6, text, align="J")
+            pdf.multi_cell(width, 6, text, align="L")
 
     out = pdf.output()  # fpdf2 ≥ 2.8 renvoie un bytearray
     return bytes(out)

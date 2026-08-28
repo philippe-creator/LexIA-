@@ -26,4 +26,8 @@ RUN mkdir -p data/raw data/processed data/uploads data/vector_stores logs \
     && chmod +x entrypoint.sh
 ENTRYPOINT ["./entrypoint.sh"]
 EXPOSE 8000
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+
+# Un seul worker : SQLite (choix par défaut, cf. .env.example) n'est pas conçu
+# pour des écrivains concurrents. Passer à plusieurs workers nécessite d'abord
+# de migrer vers PostgreSQL (DATABASE_URL, voir DEPLOYMENT.md).
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

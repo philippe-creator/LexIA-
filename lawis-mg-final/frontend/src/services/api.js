@@ -2,6 +2,22 @@ import axios from "axios";
 
 const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
+// FastAPI renvoie `detail` comme une simple chaîne pour la plupart des erreurs
+// (HTTPException), mais comme un TABLEAU d'objets {type,loc,msg,input,ctx}
+// pour les erreurs de validation Pydantic (422) — rendre cette forme
+// directement dans du JSX plante React ("Objects are not valid as a React
+// child"). Ce helper normalise les deux cas en une chaîne lisible.
+export function extractErrorMessage(err, fallback = "Une erreur s'est produite.") {
+  const detail = err?.response?.data?.detail;
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail.map((d) => d?.msg).filter(Boolean);
+    return msgs.length ? msgs.join(" ") : fallback;
+  }
+  return fallback;
+}
+
 // Le jeton d'accès ne vit qu'en mémoire (jamais dans localStorage) : un XSS
 // ne peut plus l'exfiltrer via localStorage.getItem(). Le refresh token, lui,
 // vit dans un cookie httpOnly posé par l'API — invisible à ce module aussi.
@@ -68,6 +84,11 @@ export const authService = {
   me: () => api.get("/auth/me"),
   updateProfile: (d) => api.patch("/auth/me", d),
   changePassword: (d) => api.post("/auth/change-password", d),
+  forgotPassword: (email) => api.post("/auth/forgot-password", { email }),
+  resetPassword: (token, new_password) => api.post("/auth/reset-password", { token, new_password }),
+  google: (id_token) => api.post("/auth/google", { id_token }),
+  verifyEmail: (token) => api.post("/auth/verify-email", { token }),
+  resendVerification: (email) => api.post("/auth/resend-verification", { email }),
 };
 
 export const chatService = {
@@ -148,6 +169,13 @@ export const compareService = {
   compare: (d) => api.post("/compare/", d),
 };
 
+export const adminService = {
+  overview: () => api.get("/admin/overview"),
+  listUsers: () => api.get("/admin/users"),
+  promote: (userId) => api.post(`/admin/users/${userId}/promote`),
+  demote: (userId) => api.post(`/admin/users/${userId}/demote`),
+};
+
 export const calculatorService = {
   severancePay: (d) => api.post("/calculators/severance-pay", d),
   noticePeriod: (d) => api.post("/calculators/notice-period", d),
@@ -177,7 +205,16 @@ export const legalDocumentService = {
 
 export const documentService = {
   list: () => api.get("/documents/"),
-  upload: (fd) => api.post("/documents/upload", fd, { headers: { "Content-Type": "multipart/form-data" } }),
+  // L'instance `api` a Content-Type: application/json par défaut. Avec un
+  // FormData, axios sérialise alors le corps en JSON (formToJSON) au lieu de
+  // l'envoyer tel quel — le fichier est perdu. `Content-Type: undefined`
+  // retire ce défaut pour laisser le navigateur fixer lui-même le boundary
+  // multipart/form-data correct.
+  // Un PDF scanné (OCR) peut prendre plusieurs minutes à traiter — bien au-delà
+  // du timeout global de 60s de l'instance `api`, qui abandonnait la requête
+  // (l'utilisateur voyait "Erreur upload." alors que le serveur finissait par
+  // indexer le document avec succès en arrière-plan).
+  upload: (fd) => api.post("/documents/upload", fd, { headers: { "Content-Type": undefined }, timeout: 600000 }),
   audit: (id) => api.post(`/documents/${id}/audit`, {}, { timeout: 90000 }),
   delete: (id) => api.delete(`/documents/${id}`),
 };

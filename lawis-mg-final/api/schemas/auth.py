@@ -14,7 +14,9 @@ class RegisterRequest(BaseModel):
     @field_validator("role")
     @classmethod
     def validate_role(cls, v):
-        allowed = {"admin","juriste","avocat","entreprise","etudiant","particulier"}
+        # "admin" est délibérément exclu : ce schéma sert l'inscription PUBLIQUE
+        # (/auth/register). Un compte admin ne se crée que via scripts/promote_admin.py.
+        allowed = {"juriste","avocat","entreprise","etudiant","particulier"}
         if v not in allowed: raise ValueError(f"Rôle invalide.")
         return v
 
@@ -39,3 +41,19 @@ class UpdateProfileRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8)
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr

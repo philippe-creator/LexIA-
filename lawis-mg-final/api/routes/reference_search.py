@@ -4,6 +4,7 @@ from api.core.dependencies import CurrentUser
 from api.schemas.chat import ReferenceRequest, safe_url
 from retrieval.keyword_search import keyword_search
 from retrieval.vector_search import vector_search
+from processing.indexer import get_collection
 from core.domains import DOMAINS
 
 router = APIRouter(prefix="/reference", tags=["Référence"])
@@ -96,7 +97,43 @@ def has_lexical_overlap(text, tokens):
     if not tokens:
         return True
     low = text.lower()
-    return any(t in low for t in tokens)
+    # Bornes de mot : sinon "62" matche à l'intérieur de "3620" ou "462", et un
+    # nombre isolé finit presque toujours par apparaître quelque part dans un
+    # document juridique de plusieurs pages (dates, autres articles cités...).
+    return any(re.search(rf"\b{re.escape(t)}\b", low) for t in tokens)
+
+def _full_article_text(text: str, metadata: dict, domain: str) -> str:
+    """Recolle un article découpé en plusieurs chunks (chunk_idx "5_0", "5_1"...
+    — voir processing/chunker.py, un article dépassant 1600 caractères est
+    re-découpé par taille) pour renvoyer le texte complet au lieu d'un seul
+    fragment. Sans ça, l'utilisateur voit un article coupé en plein milieu."""
+    chunk_idx = str(metadata.get("chunk_idx", ""))
+    filename = metadata.get("filename")
+    if "_" not in chunk_idx or not filename:
+        return text
+    prefix = chunk_idx.split("_")[0] + "_"
+    try:
+        col = get_collection(domain)
+        res = col.get(where={"filename": {"$eq": filename}}, include=["documents", "metadatas"])
+    except Exception:
+        return text
+    siblings = [
+        (m.get("chunk_idx", ""), d)
+        for d, m in zip(res["documents"], res["metadatas"])
+        if str(m.get("chunk_idx", "")).startswith(prefix)
+    ]
+    if len(siblings) <= 1:
+        return text
+
+    def _suffix(idx: str) -> int:
+        try:
+            return int(idx.split("_")[1])
+        except (IndexError, ValueError):
+            return 0
+
+    siblings.sort(key=lambda item: _suffix(item[0]))
+    return " ".join(d for _, d in siblings)
+
 
 @router.post("/")
 async def search_reference(request: ReferenceRequest, current_user: CurrentUser):
@@ -119,9 +156,15 @@ async def search_reference(request: ReferenceRequest, current_user: CurrentUser)
     for ref in search_refs:
         ref_type=classify_ref(ref)
         tokens=content_tokens(ref)
+        norm_ref = " ".join(ref.split()).lower()
         for domain in domains:
             for hit in keyword_search(ref,domain,n_results=pool_size):
-                if ref.lower()[:8] in hit["text"].lower():
+                # Comparer sur la référence NORMALISÉE COMPLÈTE, pas ses 8
+                # premiers caractères : pour « article 62 », [:8] ne retient que
+                # "article " (le mot générique, sans le numéro) — n'importe quel
+                # passage citant N'IMPORTE quel article passait ce filtre.
+                norm_text = " ".join(hit["text"].split()).lower()
+                if norm_ref in norm_text:
                     all_results.append({**hit,"reference_detected":ref,"reference_type":ref_type,"domain":domain,"score":hit.get("score",0)*exact_ref_boost(hit["text"],ref)*filename_boost(hit.get("metadata"),file_hint)})
         if len(all_results)<2:
             for domain in domains:
@@ -137,6 +180,7 @@ async def search_reference(request: ReferenceRequest, current_user: CurrentUser)
         if key not in seen:
             seen.append(key)
             meta=r.get("metadata",{})
-            final.append({"reference_detected":r["reference_detected"],"reference_type":r["reference_type"],"text":r["text"],"domain":r["domain"],"source":meta.get("source","N/A"),"filename":meta.get("filename","N/A"),"url":safe_url(meta.get("url")),"score":float(r.get("score",0)),"excerpt":r["text"][:300]+"..." if len(r["text"])>300 else r["text"]})
+            full_text=_full_article_text(r["text"],meta,r["domain"])
+            final.append({"reference_detected":r["reference_detected"],"reference_type":r["reference_type"],"text":full_text,"domain":r["domain"],"source":meta.get("source","N/A"),"filename":meta.get("filename","N/A"),"url":safe_url(meta.get("url")),"score":float(r.get("score",0))})
         if len(final)>=request.top_k: break
     return {"query":request.reference,"references_found":refs,"results":final,"domains_searched":domains}

@@ -26,6 +26,9 @@ class ChatRequest(BaseModel):
     domain: Optional[str] = None
     doc_type: Optional[str] = None
     year: Optional[int] = None
+    # Limite la recherche aux seuls passages d'un document importé par
+    # l'utilisateur ("discuter avec ce document") — voir api/routes/chat.py.
+    document_id: Optional[str] = None
     lang: str = "fr"  # langue de réponse : "fr" | "ar"
     top_k: int = Field(5, ge=1, le=10)
     adapt_to_profile: bool = True

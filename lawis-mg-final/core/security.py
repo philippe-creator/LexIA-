@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 import bcrypt
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 from core.config import settings
 
 # bcrypt ne prend en compte que les 72 premiers octets du mot de passe (limite de
@@ -42,3 +44,31 @@ def create_refresh_token() -> tuple[str, str]:
 
 def hash_refresh_token(token: str) -> str: return hashlib.sha256(token.encode()).hexdigest()
 def refresh_token_expires_at() -> datetime: return datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+# Même schéma que les refresh tokens : token aléatoire envoyé une fois par email,
+# seul son hash SHA-256 est conservé en base (jamais le token en clair).
+def create_password_reset_token() -> tuple[str, str]:
+    raw = secrets.token_urlsafe(48)
+    return raw, hashlib.sha256(raw.encode()).hexdigest()
+
+def hash_password_reset_token(token: str) -> str: return hashlib.sha256(token.encode()).hexdigest()
+def password_reset_token_expires_at() -> datetime: return datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+
+# Même schéma pour la confirmation d'email à l'inscription.
+def create_email_verification_token() -> tuple[str, str]:
+    raw = secrets.token_urlsafe(48)
+    return raw, hashlib.sha256(raw.encode()).hexdigest()
+
+def hash_email_verification_token(token: str) -> str: return hashlib.sha256(token.encode()).hexdigest()
+def email_verification_token_expires_at() -> datetime: return datetime.now(timezone.utc) + timedelta(minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES)
+
+def verify_google_id_token(token: str) -> dict:
+    """Vérifie la signature/l'audience d'un ID token émis par Google Identity
+    Services (envoyé par le bouton "Se connecter avec Google" du frontend) et
+    renvoie ses claims (email, name, email_verified, sub...). Lève ValueError
+    si le token est invalide, expiré, ou destiné à un autre client — pas besoin
+    du client secret : la vérification se fait uniquement via la signature
+    Google (JWKS), c'est le même principe que decode_access_token côté API."""
+    if not settings.GOOGLE_CLIENT_ID:
+        raise ValueError("Connexion Google non configurée sur ce serveur.")
+    return google_id_token.verify_oauth2_token(token, google_requests.Request(), settings.GOOGLE_CLIENT_ID)

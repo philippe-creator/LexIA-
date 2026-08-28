@@ -7,7 +7,7 @@ def _stub_retrieval(monkeypatch):
     """Neutralise la pile ML et capture les doc_type/year vus par la recherche."""
     seen = {}
 
-    def fake_vector(variant, domains, n_results_per_domain, user_id, doc_type, year):
+    def fake_vector(variant, domains, n_results_per_domain, user_id, doc_type, year, document_id=None):
         seen["vector"] = (doc_type, year)
         return []
 

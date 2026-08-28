@@ -18,6 +18,7 @@ from api.routes.calculators import router as calculators_router
 from api.routes.notifications import router as notifications_router
 from api.routes.export import router as export_router
 from api.routes.legal_documents import router as legal_documents_router
+from api.routes.admin_users import router as admin_users_router
 
 
 def _active_llm_key() -> str:
@@ -69,6 +70,7 @@ app.include_router(calculators_router)
 app.include_router(notifications_router)
 app.include_router(export_router)
 app.include_router(legal_documents_router)
+app.include_router(admin_users_router)
 
 
 @app.get("/", tags=["Health"])
