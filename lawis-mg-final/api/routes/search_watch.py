@@ -6,7 +6,7 @@ from core.database import get_db, User
 from api.core.dependencies import CurrentUser, require_role
 from api.schemas.chat import SearchRequest, SearchResponse, SearchResult, WatchStatus, CorpusStats
 from retrieval.hybrid_retriever import retrieve
-from processing.indexer import get_corpus_stats
+from processing.indexer import get_corpus_stats, get_corpus_document_counts
 from processing.doc_type import DOC_TYPES
 from core.domains import DOMAINS
 
@@ -28,7 +28,8 @@ async def search(request: SearchRequest, current_user: CurrentUser):
 @search_router.get("/stats", response_model=CorpusStats)
 async def corpus_stats():
     stats = get_corpus_stats()
-    return CorpusStats(stats=stats, total_chunks=sum(stats.values()))
+    documents = get_corpus_document_counts()
+    return CorpusStats(stats=stats, total_chunks=sum(stats.values()), documents=documents, total_documents=sum(documents.values()))
 
 @search_router.get("/recent-texts")
 async def recent_texts(db: Session = Depends(get_db)):

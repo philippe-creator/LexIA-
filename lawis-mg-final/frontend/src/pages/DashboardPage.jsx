@@ -106,12 +106,12 @@ export default function DashboardPage() {
         {stats ? (
           <>
             <div className="stats-grid">
-              {Object.entries(stats.stats).map(([d,n]) => (
-                <div key={d} className="stat-card"><div className="stat-label">{DL[d]||d}</div><div className="stat-value">{n.toLocaleString()}</div><div className="stat-unit">chunks</div></div>
+              {Object.entries(stats.documents).map(([d,n]) => (
+                <div key={d} className="stat-card"><div className="stat-label">{DL[d]||d}</div><div className="stat-value">{n.toLocaleString()}</div><div className="stat-unit">documents · {(stats.stats[d]||0).toLocaleString()} chunks</div></div>
               ))}
-              <div className="stat-card highlight"><div className="stat-label">Total</div><div className="stat-value">{stats.total_chunks.toLocaleString()}</div><div className="stat-unit">chunks</div></div>
+              <div className="stat-card highlight"><div className="stat-label">Total</div><div className="stat-value">{stats.total_documents.toLocaleString()}</div><div className="stat-unit">documents · {stats.total_chunks.toLocaleString()} chunks</div></div>
             </div>
-            {stats.total_chunks===0 && <div className="dashboard-alert"><AlertCircle size={15}/> Corpus vide. Lancez : <code>docker-compose exec api python ingestion/watcher.py</code></div>}
+            {stats.total_documents===0 && <div className="dashboard-alert"><AlertCircle size={15}/> Corpus vide. Lancez : <code>docker-compose exec api python ingestion/watcher.py</code></div>}
           </>
         ) : <p className="text-muted">Chargement...</p>}
       </section>

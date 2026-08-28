@@ -109,3 +109,5 @@ class WatchStatus(BaseModel):
 class CorpusStats(BaseModel):
     stats: dict
     total_chunks: int
+    documents: dict
+    total_documents: int

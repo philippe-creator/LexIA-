@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Scale, Search, GitCompare, Calculator, Upload, MessageSquare, CheckCircle2, ArrowRight, Send, Loader2, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import api, { chatService, watchService, extractErrorMessage } from "../services/api";
+import { chatService, watchService, searchService, extractErrorMessage } from "../services/api";
 import LiveDemo from "../components/landing/LiveDemo";
 import { useCountUp } from "../hooks/useCountUp";
 import { useReveal } from "../hooks/useReveal";
@@ -51,7 +51,7 @@ export default function LandingPage() {
   const [demoError, setDemoError] = useState(null);
 
   useEffect(() => {
-    api.get("/health").then((r) => setStats(r.data)).catch(() => {});
+    searchService.stats().then((r) => setStats(r.data)).catch(() => {});
     watchService.recentTexts().then((r) => setRecent(r.data || [])).catch(() => {});
   }, []);
   useReveal([stats, recent]);
@@ -69,8 +69,8 @@ export default function LandingPage() {
     } finally { setDemoLoading(false); }
   };
 
-  const domainsWithData = stats ? Object.entries(stats.corpus_stats || {}).filter(([, n]) => n > 0) : [];
-  const totalDomainCount = stats ? Object.keys(stats.corpus_stats || {}).length : 0;
+  const domainsWithData = stats ? Object.entries(stats.documents || {}).filter(([, n]) => n > 0) : [];
+  const totalDomainCount = stats ? Object.keys(stats.documents || {}).length : 0;
 
   return (
     <div className="landing">
@@ -168,7 +168,7 @@ export default function LandingPage() {
 
         {stats && (
           <div className="landing-stats">
-            <CountStat value={stats.total_chunks} label="passages juridiques indexés"/>
+            <CountStat value={stats.total_documents} label="documents juridiques indexés"/>
             <CountStat value={domainsWithData.length} label={`domaines actifs sur ${totalDomainCount}`}/>
             <div className="landing-stat"><span className="landing-stat-value">2</span><span className="landing-stat-label">langues — FR / ع</span></div>
           </div>

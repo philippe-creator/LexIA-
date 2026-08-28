@@ -129,7 +129,7 @@ def index_batch_from_dir(processed_dir: Path, domain: str) -> int:
 
 
 def get_corpus_stats() -> dict:
-    """Retourne le nombre de documents par corpus."""
+    """Retourne le nombre de chunks (passages indexés) par corpus."""
     stats = {}
     for domain in DOMAINS:
         try:
@@ -138,6 +138,24 @@ def get_corpus_stats() -> dict:
         except Exception:
             stats[domain] = 0
     return stats
+
+
+def get_corpus_document_counts() -> dict:
+    """Retourne le nombre de documents DISTINCTS par corpus (déduplication par
+    nom de fichier) — contrairement à get_corpus_stats(), qui compte les
+    chunks. Un même document produit des dizaines de chunks ; le nombre de
+    documents reflète mieux l'étendue réelle du corpus qu'un total de chunks,
+    dont la valeur dépend surtout du découpage choisi."""
+    counts = {}
+    for domain in DOMAINS:
+        try:
+            col = get_collection(domain)
+            res = col.get(include=["metadatas"])
+            filenames = {m.get("filename", "?") for m in res["metadatas"]}
+            counts[domain] = len(filenames)
+        except Exception:
+            counts[domain] = 0
+    return counts
 
 
 if __name__ == "__main__":
