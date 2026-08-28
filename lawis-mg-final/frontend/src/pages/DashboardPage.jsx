@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { Database, Clock, RefreshCw, AlertCircle, TrendingUp, Users, BarChart3, Crown } from "lucide-react";
+import { Database, Clock, RefreshCw, AlertCircle, TrendingUp, Users, BarChart3, Crown, Gauge } from "lucide-react";
 import { searchService, watchService, adminService, extractErrorMessage } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 const DL = { travail:"Droit du travail", fiscal:"Droit fiscal", societes:"Droit des sociétés", donnees_personnelles:"Protection des données", penal:"Droit pénal", jurisprudence:"Jurisprudence", divers:"Divers" };
+const CONFIDENCE_ORDER = ["élevé", "moyen", "faible", "insuffisant"];
+const CONFIDENCE_META = {
+  "élevé": { color: "#16A34A", label: "Élevée" },
+  "moyen": { color: "#D97706", label: "Moyenne" },
+  "faible": { color: "#DC2626", label: "Faible" },
+  "insuffisant": { color: "#6B7280", label: "Insuffisante" },
+};
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -65,6 +72,32 @@ export default function DashboardPage() {
               ))}</tbody>
             </table>
           )}
+        </section>
+      )}
+
+      {overview && (
+        <section className="dashboard-section">
+          <h2><Gauge size={17}/> Qualité des réponses</h2>
+          {overview.total_answered > 0 ? (
+            <>
+              <div className="stats-grid">
+                <div className="stat-card"><div className="stat-label">Confiance moyenne</div><div className="stat-value">{Math.round(overview.avg_confidence_score*100)}%</div></div>
+                <div className="stat-card"><div className="stat-label">Réponses insuffisantes</div><div className="stat-value">{overview.insufficient_rate_pct}%</div><div className="stat-unit">aucune source trouvée</div></div>
+              </div>
+              <div className="confidence-bar" style={{marginTop:14}}>
+                {CONFIDENCE_ORDER.map(label => {
+                  const count = overview.confidence_distribution[label] || 0;
+                  const pct = (count / overview.total_answered) * 100;
+                  return pct > 0 ? <div key={label} style={{width:`${pct}%`, background: CONFIDENCE_META[label].color}} title={`${CONFIDENCE_META[label].label} : ${count}`}/> : null;
+                })}
+              </div>
+              <div className="confidence-legend">
+                {CONFIDENCE_ORDER.map(label => (
+                  <span key={label}><i style={{background: CONFIDENCE_META[label].color}}/>{CONFIDENCE_META[label].label} ({overview.confidence_distribution[label] || 0})</span>
+                ))}
+              </div>
+            </>
+          ) : <p className="text-muted">Pas encore de réponses générées.</p>}
         </section>
       )}
 

@@ -208,6 +208,10 @@ code { font-family: var(--font-mono); background: var(--bg); padding: 2px 6px; b
 .stat-value { font-size: 26px; font-weight: 700; color: var(--navy); }
 .stat-card.highlight .stat-value { background: linear-gradient(135deg, var(--gold-soft), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .stat-unit { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.confidence-bar { display: flex; width: 100%; height: 10px; border-radius: 6px; overflow: hidden; background: var(--bg); }
+.confidence-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--text-secondary); }
+.confidence-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.confidence-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .dashboard-alert { display: flex; align-items: center; gap: 8px; background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 7px; padding: 10px 14px; font-size: 13px; color: #92400E; margin: 12px 0; }
 .dashboard-alert.success { background: #D1FAE5; border-color: #A7F3D0; color: #065F46; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }

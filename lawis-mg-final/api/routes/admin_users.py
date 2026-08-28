@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 from core.database import get_db, User, Conversation, Message
 from api.core.dependencies import CurrentUser, require_role, require_owner
@@ -70,6 +70,30 @@ async def overview(current_user: User = Depends(require_role("admin")), db: Sess
     )
     top_domains = [{"domain": d, "count": c} for d, c in domain_rows]
 
+    # Qualité des réponses : seuils identiques à confidence_label_for_score()
+    # (retrieval/reranker.py) — pas réutilisable telle quelle en SQL, donc
+    # répliquée ici via CASE plutôt que de charger tous les messages en Python.
+    label_expr = case(
+        (Message.confidence_score >= 0.8, "élevé"),
+        (Message.confidence_score >= 0.6, "moyen"),
+        (Message.confidence_score >= 0.4, "faible"),
+        else_="insuffisant",
+    )
+    confidence_rows = (
+        db.query(label_expr.label("label"), func.count(Message.id))
+        .filter(Message.role == "assistant", Message.confidence_score.isnot(None))
+        .group_by("label")
+        .all()
+    )
+    confidence_distribution = {label: count for label, count in confidence_rows}
+    total_answered = sum(confidence_distribution.values())
+    avg_confidence = db.query(func.avg(Message.confidence_score)).filter(
+        Message.role == "assistant", Message.confidence_score.isnot(None)
+    ).scalar()
+    insufficient_rate_pct = (
+        round(100 * confidence_distribution.get("insuffisant", 0) / total_answered, 1) if total_answered else None
+    )
+
     return {
         "total_users": total_users,
         "verified_users": verified_users,
@@ -77,4 +101,8 @@ async def overview(current_user: User = Depends(require_role("admin")), db: Sess
         "messages_last_7d": messages_7d,
         "messages_last_30d": messages_30d,
         "top_domains": top_domains,
+        "avg_confidence_score": round(avg_confidence, 2) if avg_confidence is not None else None,
+        "insufficient_rate_pct": insufficient_rate_pct,
+        "confidence_distribution": confidence_distribution,
+        "total_answered": total_answered,
     }
