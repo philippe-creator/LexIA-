@@ -7,12 +7,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
-data/raw/
-data/processed/
-data/uploads/
-data/vector_stores/
-data/tessdata/
-data/*.db
+data/
 logs/
 frontend/node_modules/
 frontend/build/
