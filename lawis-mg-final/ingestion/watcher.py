@@ -6,6 +6,7 @@ Déclenche automatiquement l'ingestion si de nouveaux documents sont détectés.
 import json
 import hashlib
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from loguru import logger
@@ -54,6 +55,36 @@ def compute_fingerprint(documents: list[dict]) -> str:
     return hashlib.md5("|".join(urls).encode()).hexdigest()
 
 
+def _process_source(name: str, fn, prev_fingerprint: str | None) -> dict:
+    """Scrape puis indexe une source — exécuté en parallèle (un thread par
+    source) par run_watch_cycle(). Ne lève jamais : les erreurs sont
+    retournées dans le résultat plutôt que propagées, pour ne pas interrompre
+    les autres sources en cours."""
+    logger.info(f"Vérification source : {name}")
+    try:
+        docs = fn()
+    except Exception as e:
+        logger.error(f"Erreur source {name} : {e}")
+        return {"name": name, "error": str(e)}
+
+    fingerprint = compute_fingerprint(docs)
+    is_changed = fingerprint != prev_fingerprint
+    new_docs = [d for d in docs if d.get("is_new")] if is_changed else []
+
+    if new_docs:
+        logger.info(f"{name} : {len(new_docs)} nouveau(x) document(s) détecté(s)")
+        try:
+            _trigger_indexation(new_docs)
+        except Exception as e:
+            logger.error(f"Erreur indexation source {name} : {e}")
+        try:
+            _notify_new_documents(name, new_docs)
+        except Exception as e:
+            logger.warning(f"Notification watch {name} ignorée : {e}")
+
+    return {"name": name, "error": None, "fingerprint": fingerprint, "doc_count": len(docs), "changed": is_changed, "new_docs": new_docs}
+
+
 def run_watch_cycle() -> dict:
     """
     Lance un cycle complet de veille sur toutes les sources.
@@ -79,47 +110,36 @@ def run_watch_cycle() -> dict:
         {"name": "jurisprudence_ma", "fn": lambda: scrape_jurisprudence_ma(batch_size=JURISPRUDENCE_MA_MAX)},
     ]
 
+    # Sources traitées en parallèle, chacune dans son propre thread : sûr
+    # car chaque domaine a sa propre collection Chroma (fichier persistant
+    # séparé, voir get_collection() dans processing/indexer.py) et chaque
+    # ingestion ouvre sa propre session SQLAlchemy (voir ingest_text()) —
+    # la seule ressource partagée est le fichier SQLite de l'app, qui tolère
+    # déjà les écritures concurrentes avec un repli sans casse (voir
+    # save_snapshot() / ingest_text()). Accélère surtout les cycles où
+    # plusieurs sources ont un vrai travail d'embedding à faire (ex. SGG et
+    # jurisprudence.ma en même temps) plutôt que de les enchaîner en série.
     new_state = {}
-
-    for source in sources:
-        name = source["name"]
-        logger.info(f"Vérification source : {name}")
-        try:
-            docs = source["fn"]()
-            fingerprint = compute_fingerprint(docs)
-
-            # Comparer avec l'état précédent
-            prev_fingerprint = state.get(name, {}).get("fingerprint")
-            is_changed = fingerprint != prev_fingerprint
-
+    with ThreadPoolExecutor(max_workers=len(sources)) as executor:
+        futures = {
+            executor.submit(_process_source, s["name"], s["fn"], state.get(s["name"], {}).get("fingerprint")): s["name"]
+            for s in sources
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            name = result["name"]
+            if result["error"]:
+                report["errors"].append({"source": name, "error": result["error"]})
+                continue
             new_state[name] = {
-                "fingerprint": fingerprint,
+                "fingerprint": result["fingerprint"],
                 "last_check": datetime.now().isoformat(),
-                "doc_count": len(docs),
-                "changed": is_changed,
+                "doc_count": result["doc_count"],
+                "changed": result["changed"],
             }
-
-            report["sources_checked"].append({
-                "source": name,
-                "doc_count": len(docs),
-                "changed": is_changed,
-            })
-
-            if is_changed:
-                new_docs = [d for d in docs if d.get("is_new")]
-                report["new_documents"].extend(new_docs)
-                logger.info(f"{name} : {len(new_docs)} nouveau(x) document(s) détecté(s)")
-
-                if new_docs:
-                    _trigger_indexation(new_docs)
-                    try:
-                        _notify_new_documents(name, new_docs)
-                    except Exception as e:
-                        logger.warning(f"Notification watch {name} ignorée : {e}")
-
-        except Exception as e:
-            logger.error(f"Erreur source {name} : {e}")
-            report["errors"].append({"source": name, "error": str(e)})
+            report["sources_checked"].append({"source": name, "doc_count": result["doc_count"], "changed": result["changed"]})
+            if result["new_docs"]:
+                report["new_documents"].extend(result["new_docs"])
 
     save_state(new_state)
     _save_report(report)
