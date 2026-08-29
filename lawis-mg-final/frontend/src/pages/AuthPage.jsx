@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Scale, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { authService, extractErrorMessage } from "../services/api";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 
@@ -10,27 +11,47 @@ const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
 // Charge le script Google Identity Services une seule fois (partagé entre
 // remontages du composant en React.StrictMode) et rend le bouton officiel
-// Google dans le noeud fourni.
-function useGoogleSignInButton(containerRef, onCredential) {
+// Google dans le noeud fourni. Le widget Google n'accepte qu'une largeur en
+// pixels (pas de %) — on la recalcule à partir du conteneur (qui, lui, est en
+// %/flex et suit vraiment l'écran) à chaque montage et redimensionnement,
+// pour éviter un bouton à largeur fixe qui déborde sur mobile.
+function useGoogleSignInButton(containerRef, onCredential, locale) {
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID || !containerRef.current) return;
     let cancelled = false;
+    let resizeTimer = null;
     const render = () => {
       if (cancelled || !window.google?.accounts?.id || !containerRef.current) return;
       window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: (r) => onCredential(r.credential) });
-      window.google.accounts.id.renderButton(containerRef.current, { theme: "outline", size: "large", width: 360, locale: "fr" });
+      const available = containerRef.current.clientWidth || 360;
+      const width = Math.round(Math.max(200, Math.min(400, available))); // bornes imposées par Google
+      containerRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(containerRef.current, { theme: "outline", size: "large", width, locale });
     };
-    if (window.google?.accounts?.id) { render(); return; }
-    const existing = document.getElementById("google-gsi-script");
-    if (existing) { existing.addEventListener("load", render); return () => existing.removeEventListener("load", render); }
-    const script = document.createElement("script");
-    script.id = "google-gsi-script";
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = render;
-    document.body.appendChild(script);
-    return () => { cancelled = true; };
-  }, [containerRef, onCredential]);
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(render, 150);
+    };
+    const start = () => { render(); window.addEventListener("resize", handleResize); };
+    let cleanupLoad = () => {};
+    if (window.google?.accounts?.id) {
+      start();
+    } else {
+      const existing = document.getElementById("google-gsi-script");
+      if (existing) {
+        existing.addEventListener("load", start);
+        cleanupLoad = () => existing.removeEventListener("load", start);
+      } else {
+        const script = document.createElement("script");
+        script.id = "google-gsi-script";
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.onload = start;
+        document.body.appendChild(script);
+      }
+    }
+    return () => { cancelled = true; clearTimeout(resizeTimer); window.removeEventListener("resize", handleResize); cleanupLoad(); };
+  }, [containerRef, onCredential, locale]);
 }
 
 const ROLES = [
@@ -51,6 +72,7 @@ export default function AuthPage() {
   const [consent, setConsent] = useState(false);
   const [form, setForm] = useState({ email:"", password:"", username:"", full_name:"", role:"particulier" });
   const { login, register, loginWithGoogle } = useAuth();
+  const { lang } = useLanguage();
   const navigate = useNavigate();
   const googleBtnRef = useRef(null);
 
@@ -60,7 +82,7 @@ export default function AuthPage() {
     catch (err) { setError(extractErrorMessage(err)); }
     finally { setLoading(false); }
   }, [loginWithGoogle, navigate]);
-  useGoogleSignInButton(googleBtnRef, handleGoogleCredential);
+  useGoogleSignInButton(googleBtnRef, handleGoogleCredential, lang);
 
   const handleChange = (e) => { setForm((p) => ({...p, [e.target.name]: e.target.value})); setError(null); };
 
