@@ -185,22 +185,35 @@ def generate(system_prompt: str, user_message: str) -> str:
     models = models_fn()
     last_error: Exception | None = None
     for i, model in enumerate(models):
+        remaining = len(models) - i - 1
         try:
-            return fn(system_prompt, user_message, model)
+            result = fn(system_prompt, user_message, model)
         except LLMError as e:
             last_error = e
             if not e.retryable:
                 logger.error(f"Erreur LLM fatale ({provider}/{model}): {e}")
                 raise
-            remaining = len(models) - i - 1
             if remaining:
                 logger.warning(f"Modèle {provider}/{model} indisponible ({e}) — bascule sur le suivant ({remaining} restant(s)).")
             else:
                 logger.error(f"Erreur LLM ({provider}/{model}): {e} — aucun modèle de secours restant.")
+            continue
         except Exception as e:
             last_error = e
             logger.error(f"Erreur LLM inattendue ({provider}/{model}): {e}")
             raise
+        if not result.strip():
+            # Le fournisseur a répondu avec succès mais un contenu vide (observé
+            # en pratique avec certains modèles Groq) — sans ce rattrapage,
+            # l'appelant recevait silencieusement une réponse vide, persistée
+            # telle quelle. Traité comme une erreur récupérable.
+            last_error = LLMError(f"Réponse vide de {provider}/{model}.", retryable=True)
+            if remaining:
+                logger.warning(f"Modèle {provider}/{model} a renvoyé une réponse vide — bascule sur le suivant ({remaining} restant(s)).")
+            else:
+                logger.error(f"Modèle {provider}/{model} a renvoyé une réponse vide — aucun modèle de secours restant.")
+            continue
+        return result
     raise last_error if last_error else RuntimeError("Aucun modèle LLM disponible.")
 
 
@@ -301,17 +314,28 @@ def generate_stream(system_prompt: str, user_message: str) -> Iterator[str]:
     models = models_fn()
     last_error: Exception | None = None
     for i, model in enumerate(models):
+        remaining = len(models) - i - 1
         try:
             gen = stream_fn(system_prompt, user_message, model)
             first = next(gen)  # déclenche l'ouverture du flux — peut lever avant tout token
         except StopIteration:
-            return  # flux vide mais sans erreur
+            # Le modèle a répondu sans lever la moindre erreur mais sans émettre
+            # un seul token (observé en pratique avec certains modèles Groq) —
+            # sans ce rattrapage, l'appelant recevait un flux "réussi" mais
+            # vide, et persistait un message assistant sans aucun contenu
+            # visible (badges de confiance affichés, bulle vide). On traite ça
+            # comme une erreur récupérable : bascule sur le modèle suivant.
+            last_error = LLMError(f"Réponse vide de {provider}/{model}.", retryable=True)
+            if remaining:
+                logger.warning(f"Modèle {provider}/{model} a renvoyé un flux vide — bascule sur le suivant ({remaining} restant(s)).")
+            else:
+                logger.error(f"Modèle {provider}/{model} a renvoyé un flux vide — aucun modèle de secours restant.")
+            continue
         except LLMError as e:
             last_error = e
             if not e.retryable:
                 logger.error(f"Erreur LLM stream fatale ({provider}/{model}): {e}")
                 raise
-            remaining = len(models) - i - 1
             if remaining:
                 logger.warning(f"Modèle {provider}/{model} indisponible ({e}) — bascule stream sur le suivant ({remaining} restant(s)).")
             else:

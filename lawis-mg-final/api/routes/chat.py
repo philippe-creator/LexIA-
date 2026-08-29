@@ -174,6 +174,10 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
                 logger.error(f"Erreur streaming chat (sans contexte) : {e}")
                 yield _sse({"type": "error", "detail": "La génération a échoué. Réessayez."})
                 return
+            if not full.strip():
+                logger.error("Flux terminé sans erreur mais sans aucun contenu (sans contexte) — signalé comme échec.")
+                yield _sse({"type": "error", "detail": "La génération a échoué. Réessayez."})
+                return
             msg_id = None
             db2 = SessionLocal()
             try:
@@ -199,6 +203,10 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
                 yield _sse({"type": "token", "content": token})
         except Exception as e:
             logger.error(f"Erreur streaming chat : {e}")
+            yield _sse({"type": "error", "detail": "La génération a échoué. Réessayez."})
+            return
+        if not full.strip():
+            logger.error("Flux terminé sans erreur mais sans aucun contenu — signalé comme échec.")
             yield _sse({"type": "error", "detail": "La génération a échoué. Réessayez."})
             return
         answer, suggested = extract_suggested_queries(full)
