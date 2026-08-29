@@ -13,7 +13,7 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; }
-body { font-family: var(--font); background: var(--bg); color: var(--text-primary); line-height: 1.6; }
+body { font-family: var(--font); background: var(--bg); color: var(--text-primary); line-height: 1.6; overflow-x: hidden; }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 input, select, textarea { font-family: inherit; }
@@ -88,7 +88,12 @@ code { font-family: var(--font-mono); background: var(--bg); padding: 2px 6px; b
 .auth-submit:hover:not(:disabled) { background: var(--gold-dark); }
 .auth-submit:disabled { opacity: .5; cursor: not-allowed; }
 .auth-footer-note { font-size: 11px; color: var(--text-muted); margin-top: 16px; text-align: center; }
-.chat-shell { display: flex; height: 100vh; overflow: hidden; }
+/* 100vh sur mobile inclut la barre d'adresse escamotable de Chrome/Safari —
+   la hauteur réelle disponible varie donc en cours d'utilisation, laissant
+   un vide ou un débordement selon l'état de la barre. 100dvh (hauteur de
+   viewport "dynamique") suit la zone réellement visible ; on garde 100vh
+   en repli pour les navigateurs qui ne le supportent pas encore. */
+.chat-shell { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
 .conv-sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
 .conv-sidebar-header { padding: 16px 12px; border-bottom: 1px solid var(--border); }
 .new-conv-btn { display: flex; align-items: center; gap: 7px; width: 100%; padding: 8px 12px; background: var(--navy); color: #fff; border-radius: 7px; font-size: 13px; font-weight: 500; transition: background .15s; }
@@ -503,7 +508,15 @@ code { font-family: var(--font-mono); background: var(--bg); padding: 2px 6px; b
 .legal-page li { margin-bottom: 4px; }
 .legal-back { margin-top: 24px; font-size: 13px; }
 @media (max-width: 640px) {
-  .landing-header { padding: 14px 18px; }
+  /* Logo + tagline + sélecteur de langue + Connexion/Créer un compte ne
+     tiennent pas sur une seule ligne sur mobile — ça les compressait au
+     point de couper chaque mot du logo et de la tagline sur sa propre
+     ligne. On les répartit sur deux rangées et on masque la tagline
+     (redondante avec le titre juste en dessous). */
+  .landing-header { padding: 14px 18px; flex-wrap: wrap; gap: 10px; }
+  .landing-logo { flex: 1 1 auto; min-width: 0; }
+  .landing-tagline { display: none; }
+  .landing-header-actions { flex: 1 1 100%; justify-content: flex-end; flex-wrap: wrap; }
   .landing-hero h1 { font-size: 28px; }
   .landing-hero { padding: 48px 18px 36px; }
 }

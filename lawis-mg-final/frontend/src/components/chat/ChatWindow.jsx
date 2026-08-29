@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown, Mic, Volume2, Square, Download, FileText, X, Menu } from "lucide-react";
+import { Send, Plus, Trash2, MessageSquare, Loader2, AlertCircle, CheckCircle2, AlertTriangle, XCircle, BookOpen, ExternalLink, ChevronDown, ChevronUp, ChevronRight, ThumbsUp, ThumbsDown, Mic, Volume2, Square, Download, FileText, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useChat } from "../../hooks/useChat";
 import { useSpeechToText, useTextToSpeech } from "../../hooks/useVoice";
@@ -246,7 +246,7 @@ export default function ChatWindow() {
 
       <div className="chat-main">
         <div className="chat-domain-bar">
-          <button className="conv-sidebar-toggle" onClick={() => setConvSidebarOpen(true)} aria-label={t("chat.historyDrawer")}><Menu size={18}/></button>
+          <button className="conv-sidebar-toggle" onClick={() => setConvSidebarOpen(true)} aria-label={t("chat.historyDrawer")}><MessageSquare size={18}/></button>
           <div className="domain-selector">
             {DOMAINS.map((d) => (
               <button key={String(d.value)} onClick={() => setDomain(d.value)} className={`domain-chip ${domain === d.value ? "active" : ""}`}>
