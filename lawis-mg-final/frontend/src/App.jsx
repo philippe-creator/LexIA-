@@ -1,5 +1,7 @@
 import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import "./i18n";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import CookieBanner from "./components/CookieBanner";
 import { trackPageview } from "./services/analytics";
@@ -70,5 +72,5 @@ function AppRoutes() {
   );
 }
 export default function App() {
-  return <BrowserRouter><AuthProvider><CookieBanner/><AppRoutes/></AuthProvider></BrowserRouter>;
+  return <BrowserRouter><LanguageProvider><AuthProvider><CookieBanner/><AppRoutes/></AuthProvider></LanguageProvider></BrowserRouter>;
 }

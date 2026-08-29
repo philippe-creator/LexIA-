@@ -110,7 +110,7 @@ async def chat(request: ChatRequest, current_user: CurrentUser, db: Session = De
         history, _ = repo.get_history(conv.id, 8)
         history = [{"role": m.role, "content": m.content} for m in history][:-1]
         domains = document_domain or ([request.domain] if request.domain else None)
-        chunks, conf_score, conf_label, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year, document_id=request.document_id)
+        chunks, conf_score, conf_label, domains_searched = retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year, document_id=request.document_id, lang=request.lang)
         role = current_user.role if request.adapt_to_profile else "particulier"
         if not chunks:
             system_prompt, user_message = build_no_context_prompt(request.query, user_role=role, lang=request.lang)
@@ -157,7 +157,7 @@ async def chat_stream(request: ChatRequest, current_user: CurrentUser, db: Sessi
     # événementielle pour ne pas la geler pendant ~2 s.
     loop = asyncio.get_event_loop()
     chunks, conf_score, conf_label, domains_searched = await loop.run_in_executor(
-        None, lambda: retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year, document_id=request.document_id)
+        None, lambda: retrieve(query=request.query, top_k=request.top_k, forced_domains=domains, user_id=current_user.id, doc_type=request.doc_type, year=request.year, document_id=request.document_id, lang=request.lang)
     )
 
     if not chunks:

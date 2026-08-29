@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
 // Codes de langue pour l'API Web Speech (reconnaissance + synthèse).
-const SPEECH_LANG = { fr: "fr-FR", ar: "ar-SA" };
+const SPEECH_LANG = { fr: "fr-FR", en: "en-US", ar: "ar-SA" };
 
 const SpeechRecognition =
   typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;

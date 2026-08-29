@@ -112,6 +112,17 @@ code { font-family: var(--font-mono); background: var(--bg); padding: 2px 6px; b
 .filter-selects { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .lang-toggle { display: inline-flex; border: 1.5px solid var(--border); border-radius: 20px; overflow: hidden; }
 .lang-btn { padding: 4px 11px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); background: var(--surface); transition: all .15s; }
+/* Variante sombre : le même composant réutilisé dans la sidebar (fond navy)
+   au lieu de la barre de domaine du chat (fond clair) — voir Layout.jsx. */
+.sidebar-lang-toggle { display: flex; justify-content: center; margin-bottom: 8px; border-color: rgba(255,255,255,.15); }
+.sidebar-lang-toggle .lang-btn { background: transparent; color: #94A3B8; flex: 1; }
+.sidebar-lang-toggle .lang-btn.active { background: rgba(255,255,255,.12); color: #fff; }
+.language-switcher { padding: 6px 10px; border-radius: 20px; font-size: 12.5px; font-weight: 600; cursor: pointer; outline: none; transition: border-color .15s; }
+.language-switcher-light { border: 1.5px solid var(--border); color: var(--text-secondary); background: var(--surface); }
+.language-switcher-light:hover, .language-switcher-light:focus { border-color: var(--gold); color: var(--text-primary); }
+.language-switcher-dark { width: 100%; border: 1.5px solid rgba(255,255,255,.15); color: #cbd5e1; background: rgba(255,255,255,.06); }
+.language-switcher-dark option { color: #0F172A; }
+.auth-lang-row { display: flex; justify-content: flex-end; margin-bottom: 4px; }
 .lang-btn.active { background: var(--navy); color: #fff; }
 .lang-btn:not(.active):hover { color: var(--gold-dark); }
 /* Rendu RTL quand la réponse est en arabe */

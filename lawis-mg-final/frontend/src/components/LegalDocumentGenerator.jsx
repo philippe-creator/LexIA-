@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FileText, Download, FileType, Eye, AlertCircle } from "lucide-react";
 import { legalDocumentService, extractErrorMessage } from "../services/api";
 
@@ -38,6 +39,7 @@ function Field({ field, value, onChange }) {
 }
 
 export default function LegalDocumentGenerator() {
+  const { t } = useTranslation();
   const [types, setTypes] = useState([]);
   const [activeKey, setActiveKey] = useState(null);
   const [formData, setFormData] = useState({});
@@ -52,7 +54,7 @@ export default function LegalDocumentGenerator() {
         setTypes(res.data.types);
         if (res.data.types.length) selectType(res.data.types[0]);
       })
-      .catch(() => setError("Impossible de charger les modèles de documents."));
+      .catch(() => setError(t("legalDoc.loadError")));
   }, []); // eslint-disable-line
 
   const activeType = types.find((t) => t.key === activeKey);
@@ -81,7 +83,7 @@ export default function LegalDocumentGenerator() {
       const res = await legalDocumentService.preview(activeKey, formData);
       setPreview(res.data);
     } catch (e) {
-      setError(extractErrorMessage(e, "Erreur lors de la génération."));
+      setError(extractErrorMessage(e, t("legalDoc.generateError")));
     } finally { setLoading(false); }
   };
 
@@ -99,7 +101,7 @@ export default function LegalDocumentGenerator() {
       window.URL.revokeObjectURL(url);
     } catch (e) {
       // Le corps d'erreur est un blob JSON quand la requête échoue.
-      let detail = "Erreur lors du téléchargement.";
+      let detail = t("legalDoc.downloadError");
       try { detail = JSON.parse(await e.response?.data?.text())?.detail || detail; } catch { /* noop */ }
       setError(detail);
     } finally { setDownloading(null); }
@@ -107,10 +109,8 @@ export default function LegalDocumentGenerator() {
 
   return (
     <div className="compare-container">
-      <div className="compare-header"><FileText size={20} /><h2>Générateur de documents juridiques</h2></div>
-      <p className="compare-subtitle">
-        Trames conformes au Code du travail marocain (loi 65-99). Remplissez les champs, prévisualisez, puis exportez en Word ou PDF — à faire relire par un professionnel avant usage.
-      </p>
+      <div className="compare-header"><FileText size={20} /><h2>{t("legalDoc.title")}</h2></div>
+      <p className="compare-subtitle">{t("legalDoc.subtitle")}</p>
 
       <div className="calc-tabs">
         {types.map((t) => (
@@ -131,13 +131,13 @@ export default function LegalDocumentGenerator() {
             </div>
             <div className="legaldoc-actions">
               <button className="compare-btn" onClick={doPreview} disabled={loading}>
-                <Eye size={15} /> {loading ? "Génération..." : "Aperçu"}
+                <Eye size={15} /> {loading ? t("legalDoc.generating") : t("legalDoc.preview")}
               </button>
               <button className="legaldoc-dl-btn" onClick={() => doDownload("docx")} disabled={!!downloading}>
-                <Download size={15} /> {downloading === "docx" ? "..." : "Word (.docx)"}
+                <Download size={15} /> {downloading === "docx" ? t("legalDoc.downloading") : "Word (.docx)"}
               </button>
               <button className="legaldoc-dl-btn" onClick={() => doDownload("pdf")} disabled={!!downloading}>
-                <FileType size={15} /> {downloading === "pdf" ? "..." : "PDF"}
+                <FileType size={15} /> {downloading === "pdf" ? t("legalDoc.downloading") : "PDF"}
               </button>
             </div>
             {error && <div className="calc-error">{error}</div>}
@@ -151,7 +151,7 @@ export default function LegalDocumentGenerator() {
             ) : (
               <div className="legaldoc-preview-empty">
                 <FileText size={32} />
-                <p>Remplissez le formulaire puis cliquez sur « Aperçu » pour visualiser le document.</p>
+                <p>{t("legalDoc.emptyPreview")}</p>
               </div>
             )}
           </div>

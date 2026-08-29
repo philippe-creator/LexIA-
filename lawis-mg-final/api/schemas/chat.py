@@ -29,14 +29,14 @@ class ChatRequest(BaseModel):
     # Limite la recherche aux seuls passages d'un document importé par
     # l'utilisateur ("discuter avec ce document") — voir api/routes/chat.py.
     document_id: Optional[str] = None
-    lang: str = "fr"  # langue de réponse : "fr" | "ar"
+    lang: str = "fr"  # langue de réponse : "fr" | "en" | "ar"
     top_k: int = Field(5, ge=1, le=10)
     adapt_to_profile: bool = True
 
     @field_validator("lang")
     @classmethod
     def _validate_lang(cls, v):
-        return v if v in ("fr", "ar") else "fr"
+        return v if v in ("fr", "en", "ar") else "fr"
 
 class Citation(BaseModel):
     index: int

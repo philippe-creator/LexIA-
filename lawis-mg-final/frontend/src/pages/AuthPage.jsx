@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Scale, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { authService, extractErrorMessage } from "../services/api";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
@@ -32,14 +34,15 @@ function useGoogleSignInButton(containerRef, onCredential) {
 }
 
 const ROLES = [
-  { value:"particulier", label:"Particulier", emoji:"👤" },
-  { value:"etudiant", label:"Étudiant", emoji:"🎓" },
-  { value:"juriste", label:"Juriste", emoji:"⚖️" },
-  { value:"avocat", label:"Avocat", emoji:"🏛️" },
-  { value:"entreprise", label:"Entreprise", emoji:"🏢" },
+  { value:"particulier", emoji:"👤" },
+  { value:"etudiant", emoji:"🎓" },
+  { value:"juriste", emoji:"⚖️" },
+  { value:"avocat", emoji:"🏛️" },
+  { value:"entreprise", emoji:"🏢" },
 ];
 
 export default function AuthPage() {
+  const { t } = useTranslation();
   const [mode, setMode] = useState("login");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -99,15 +102,16 @@ export default function AuthPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <div className="auth-lang-row"><LanguageSwitcher /></div>
         <div className="auth-logo">
           <div className="auth-logo-icon"><Scale size={26}/></div>
-          <div><h1 className="auth-title">LexIA Maroc</h1><p className="auth-subtitle">Veille juridique intelligente</p></div>
+          <div><h1 className="auth-title">{t("app.brand")}</h1><p className="auth-subtitle">{t("auth.tagline")}</p></div>
         </div>
         {mode !== "forgot" && (
           <div className="auth-tabs">
             {["login","register"].map((m) => (
               <button key={m} className={`auth-tab ${mode===m?"active":""}`} onClick={() => switchMode(m)}>
-                {m==="login" ? "Connexion" : "Inscription"}
+                {m==="login" ? t("auth.tabLogin") : t("auth.tabRegister")}
               </button>
             ))}
           </div>
@@ -116,7 +120,7 @@ export default function AuthPage() {
           <div className="auth-error">
             <AlertCircle size={15}/><span>{error}</span>
             {mode === "login" && error.includes("non confirmée") && (
-              <button type="button" className="auth-resend-link" onClick={handleResend} disabled={loading}>Renvoyer l'email</button>
+              <button type="button" className="auth-resend-link" onClick={handleResend} disabled={loading}>{t("auth.resendEmail")}</button>
             )}
           </div>
         )}
@@ -124,63 +128,63 @@ export default function AuthPage() {
         {mode !== "forgot" && GOOGLE_CLIENT_ID && (
           <>
             <div ref={googleBtnRef} className="google-signin-btn"/>
-            <div className="auth-divider"><span>ou</span></div>
+            <div className="auth-divider"><span>{t("auth.or")}</span></div>
           </>
         )}
         {mode === "forgot" ? (
           <form onSubmit={handleForgotSubmit} className="auth-form">
-            <p className="form-hint">Indiquez votre email : si un compte existe, un lien de réinitialisation vous sera envoyé.</p>
-            <div className="form-group"><label>Email *</label><input type="email" name="email" value={form.email} onChange={handleChange} required className="form-input" placeholder="email@exemple.ma"/></div>
-            <button type="submit" className="auth-submit" disabled={loading}>{loading ? "..." : "Envoyer le lien"}</button>
-            <button type="button" className="auth-back-link" onClick={() => switchMode("login")}>Retour à la connexion</button>
+            <p className="form-hint">{t("auth.forgotHint")}</p>
+            <div className="form-group"><label>{t("auth.email")}</label><input type="email" name="email" value={form.email} onChange={handleChange} required className="form-input" placeholder={t("auth.emailPlaceholder")}/></div>
+            <button type="submit" className="auth-submit" disabled={loading}>{loading ? t("auth.loading") : t("auth.sendLink")}</button>
+            <button type="button" className="auth-back-link" onClick={() => switchMode("login")}>{t("auth.backToLogin")}</button>
           </form>
         ) : (
         <form onSubmit={handleSubmit} className="auth-form">
           {mode==="register" && (
             <>
-              <div className="form-group"><label>Nom complet</label><input name="full_name" value={form.full_name} onChange={handleChange} placeholder="Prénom Nom" className="form-input"/></div>
-              <div className="form-group"><label>Nom d'utilisateur *</label><input name="username" value={form.username} onChange={handleChange} required className="form-input" placeholder="utilisateur_123"/></div>
+              <div className="form-group"><label>{t("auth.fullName")}</label><input name="full_name" value={form.full_name} onChange={handleChange} placeholder={t("auth.fullNamePlaceholder")} className="form-input"/></div>
+              <div className="form-group"><label>{t("auth.username")}</label><input name="username" value={form.username} onChange={handleChange} required className="form-input" placeholder={t("auth.usernamePlaceholder")}/></div>
             </>
           )}
-          <div className="form-group"><label>Email *</label><input type="email" name="email" value={form.email} onChange={handleChange} required className="form-input" placeholder="email@exemple.ma"/></div>
+          <div className="form-group"><label>{t("auth.email")}</label><input type="email" name="email" value={form.email} onChange={handleChange} required className="form-input" placeholder={t("auth.emailPlaceholder")}/></div>
           <div className="form-group">
-            <label>Mot de passe *</label>
+            <label>{t("auth.password")}</label>
             <div className="input-password">
-              <input type={showPwd?"text":"password"} name="password" value={form.password} onChange={handleChange} required className="form-input" placeholder="Minimum 8 caractères"/>
+              <input type={showPwd?"text":"password"} name="password" value={form.password} onChange={handleChange} required className="form-input" placeholder={t("auth.passwordPlaceholder")}/>
               <button type="button" className="pwd-toggle" onClick={() => setShowPwd(!showPwd)}>{showPwd?<EyeOff size={15}/>:<Eye size={15}/>}</button>
             </div>
           </div>
           {mode==="register" && (
             <div className="form-group">
-              <label>Profil *</label>
+              <label>{t("auth.role")}</label>
               <div className="role-grid">
                 {ROLES.map((r) => (
                   <button key={r.value} type="button" className={`role-chip ${form.role===r.value?"active":""}`} onClick={() => setForm((p)=>({...p,role:r.value}))}>
-                    <span className="role-emoji">{r.emoji}</span><span>{r.label}</span>
+                    <span className="role-emoji">{r.emoji}</span><span>{t(`role.${r.value}`)}</span>
                   </button>
                 ))}
               </div>
-              <p className="form-hint">Votre profil adapte les réponses à votre niveau.</p>
+              <p className="form-hint">{t("auth.roleHint")}</p>
             </div>
           )}
           {mode==="register" && (
             <label className="auth-consent">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
               <span>
-                J'accepte les <a href="/cgu" target="_blank" rel="noopener noreferrer">CGU</a> et la{" "}
-                <a href="/confidentialite" target="_blank" rel="noopener noreferrer">politique de confidentialité</a>.
+                {t("auth.consentAccept")} <a href="/cgu" target="_blank" rel="noopener noreferrer">{t("auth.consentTerms")}</a> {t("auth.consentAnd")}{" "}
+                <a href="/confidentialite" target="_blank" rel="noopener noreferrer">{t("auth.consentPrivacy")}</a>.
               </span>
             </label>
           )}
           {mode==="login" && (
-            <button type="button" className="auth-back-link" onClick={() => switchMode("forgot")}>Mot de passe oublié ?</button>
+            <button type="button" className="auth-back-link" onClick={() => switchMode("forgot")}>{t("auth.forgotPassword")}</button>
           )}
           <button type="submit" className="auth-submit" disabled={loading || (mode==="register" && !consent)}>
-            {loading ? "..." : mode==="login" ? "Se connecter" : "Créer mon compte"}
+            {loading ? t("auth.loading") : mode==="login" ? t("auth.submitLogin") : t("auth.submitRegister")}
           </button>
         </form>
         )}
-        <p className="auth-footer-note">Les réponses fournies sont informatives et ne constituent pas un avis juridique professionnel.</p>
+        <p className="auth-footer-note">{t("auth.footerNote")}</p>
       </div>
     </div>
   );

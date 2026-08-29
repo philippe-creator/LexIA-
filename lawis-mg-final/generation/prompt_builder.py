@@ -61,6 +61,12 @@ RÈGLES :
 # en français malgré une question arabe). On impose donc la langue de sortie.
 _LANG_DIRECTIVE = {
     "fr": "CONSIGNE DE LANGUE : rédige TOUTE ta réponse en français.",
+    "en": (
+        "CONSIGNE DE LANGUE : rédige TOUTE ta réponse en anglais, y compris les titres de sections et les "
+        "questions suggérées. Les textes de référence sont en français : traduis fidèlement en anglais "
+        "l'information utile, mais conserve les noms officiels des lois et les numéros d'articles/pages "
+        "tels quels (ex. « Law 65-99, Article 52 »)."
+    ),
     "ar": (
         "CONSIGNE DE LANGUE : rédige TOUTE ta réponse en arabe (اللغة العربية), y compris les titres de "
         "sections et les questions suggérées. Les textes de référence sont en français : traduis fidèlement "

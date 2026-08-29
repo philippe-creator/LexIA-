@@ -1,4 +1,5 @@
 import axios from "axios";
+import i18n from "../i18n";
 
 const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
@@ -7,7 +8,7 @@ const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 // pour les erreurs de validation Pydantic (422) — rendre cette forme
 // directement dans du JSX plante React ("Objects are not valid as a React
 // child"). Ce helper normalise les deux cas en une chaîne lisible.
-export function extractErrorMessage(err, fallback = "Une erreur s'est produite.") {
+export function extractErrorMessage(err, fallback = i18n.t("errors.generic")) {
   const detail = err?.response?.data?.detail;
   if (!detail) return fallback;
   if (typeof detail === "string") return detail;
@@ -123,7 +124,7 @@ export const chatService = {
       }
     }
     if (!res.ok || !res.body) {
-      let detail = "Erreur lors de la recherche.";
+      let detail = i18n.t("errors.search");
       try { detail = (await res.json()).detail || detail; } catch { /* corps non-JSON */ }
       handlers.onError?.(detail);
       return;

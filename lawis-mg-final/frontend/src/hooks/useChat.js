@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import i18n from "../i18n";
 import { chatService } from "../services/api";
 
 export function useChat() {
@@ -25,7 +26,7 @@ export function useChat() {
         confidence_label: m.confidence_label, feedback: m.feedback || null,
         created_at: m.created_at,
       })));
-    } catch { setError("Impossible de charger la conversation."); }
+    } catch { setError(i18n.t("errors.loadConversation")); }
   }, []);
 
   const startNewConversation = useCallback(() => {
@@ -60,11 +61,11 @@ export function useChat() {
             id: d.message_id || assistantId, streaming: false,
             suggested_queries: d.suggested_queries || [],
           }),
-          onError: (detail) => { setError(detail || "Erreur lors de la recherche."); dropPlaceholders(); },
+          onError: (detail) => { setError(detail || i18n.t("errors.search")); dropPlaceholders(); },
         }
       );
     } catch (e) {
-      setError("Erreur lors de la recherche.");
+      setError(i18n.t("errors.search"));
       dropPlaceholders();
     } finally { setLoading(false); }
   }, [activeConvId, loading, loadConversations]);
@@ -90,7 +91,7 @@ export function useChat() {
       await chatService.deleteConversation(convId);
       setConversations((p) => p.filter((c) => c.id !== convId));
       if (activeConvId === convId) startNewConversation();
-    } catch { setError("Impossible de supprimer."); }
+    } catch { setError(i18n.t("errors.deleteConversation")); }
   }, [activeConvId, startNewConversation]);
 
   return { messages, conversations, activeConvId, loading, error, sendMessage, sendFeedback, loadConversations, loadConversation, startNewConversation, deleteConversation, setError };

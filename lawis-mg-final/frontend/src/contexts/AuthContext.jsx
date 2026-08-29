@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authService, setAccessToken, refreshAccessToken } from "../services/api";
+import { useLanguage } from "./LanguageContext";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { applyUserLanguage } = useLanguage();
 
   useEffect(() => {
     // Pas de jeton en localStorage à relire : on tente un rafraîchissement
@@ -15,17 +17,18 @@ export function AuthProvider({ children }) {
     // du jeton côté API révoquerait celui du premier appel et déconnecterait.
     refreshAccessToken()
       .then(() => authService.me())
-      .then((res) => setUser(res.data))
+      .then((res) => { setUser(res.data); applyUserLanguage(res.data.preferred_language); })
       .catch(() => setAccessToken(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [applyUserLanguage]);
 
   const login = useCallback(async (email, password) => {
     const res = await authService.login({ email, password });
     setAccessToken(res.data.access_token);
     setUser(res.data.user);
+    applyUserLanguage(res.data.user.preferred_language);
     return res.data.user;
-  }, []);
+  }, [applyUserLanguage]);
 
   const register = useCallback(async (data) => {
     // Ne connecte plus automatiquement : le compte doit d'abord être confirmé
@@ -39,8 +42,9 @@ export function AuthProvider({ children }) {
     const res = await authService.google(idToken);
     setAccessToken(res.data.access_token);
     setUser(res.data.user);
+    applyUserLanguage(res.data.user.preferred_language);
     return res.data.user;
-  }, []);
+  }, [applyUserLanguage]);
 
   const logout = useCallback(async () => {
     try { await authService.logout(); } catch {}

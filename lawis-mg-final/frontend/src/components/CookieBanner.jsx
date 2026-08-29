@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Cookie } from "lucide-react";
 import { getConsent, setConsent, loadGoogleAnalytics } from "../services/analytics";
 
 export default function CookieBanner() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -26,12 +28,11 @@ export default function CookieBanner() {
     <div className="cookie-banner">
       <Cookie size={20} className="cookie-banner-icon"/>
       <p>
-        Nous utilisons des cookies de mesure d'audience (Google Analytics) pour comprendre l'usage du site.
-        Rien n'est déposé sans votre accord. Voir la <Link to="/confidentialite">politique de confidentialité</Link>.
+        {t("cookieBanner.text")} <Link to="/confidentialite">{t("cookieBanner.privacyLink")}</Link>.
       </p>
       <div className="cookie-banner-actions">
-        <button className="cookie-btn-refuse" onClick={() => choose("refused")}>Refuser</button>
-        <button className="cookie-btn-accept" onClick={() => choose("accepted")}>J'accepte</button>
+        <button className="cookie-btn-refuse" onClick={() => choose("refused")}>{t("cookieBanner.refuse")}</button>
+        <button className="cookie-btn-accept" onClick={() => choose("accepted")}>{t("cookieBanner.accept")}</button>
       </div>
     </div>
   );
