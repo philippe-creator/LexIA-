@@ -16,6 +16,7 @@ from ingestion.scrapers.cnss_scraper import scrape_cnss
 from ingestion.scrapers.cspj_scraper import scrape_cspj
 from ingestion.scrapers.opendata_client import collect_legal_datasets
 from ingestion.scrapers.sgg_scraper import scrape_sgg
+from ingestion.scrapers.jurisprudence_ma_scraper import scrape_jurisprudence_ma
 
 STATE_FILE = Path(os.getenv("LOGS_DIR", "./logs")) / "watch_state.json"
 # scrape_cspj() documente sa valeur par défaut (5) comme une limite de
@@ -28,6 +29,10 @@ CSPJ_MAX_PAGES = int(os.getenv("CSPJ_MAX_PAGES", "25"))
 # numéros depuis 1912) est confié à un job séparé, plus fréquent, voir
 # SGG_BACKFILL_* dans ingestion/scheduler.py — pas ce cycle-ci.
 SGG_MAX_ISSUES = int(os.getenv("SGG_MAX_ISSUES", "20"))
+# jurisprudence.ma : ~24 800 décisions disponibles (texte intégral, bien plus
+# riche que juricaf.org) — même logique que SGG_MAX_ISSUES, un lot par cycle
+# automatique, le reste s'accumule progressivement cycle après cycle.
+JURISPRUDENCE_MA_MAX = int(os.getenv("JURISPRUDENCE_MA_MAX", "20"))
 
 
 def load_state() -> dict:
@@ -71,6 +76,7 @@ def run_watch_cycle() -> dict:
         {"name": "cspj", "fn": lambda: scrape_cspj(max_pages_per_chambre=CSPJ_MAX_PAGES)},
         {"name": "opendata", "fn": collect_legal_datasets},
         {"name": "sgg", "fn": lambda: scrape_sgg(batch_size=SGG_MAX_ISSUES)},
+        {"name": "jurisprudence_ma", "fn": lambda: scrape_jurisprudence_ma(batch_size=JURISPRUDENCE_MA_MAX)},
     ]
 
     new_state = {}
