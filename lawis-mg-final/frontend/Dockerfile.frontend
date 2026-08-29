@@ -8,7 +8,7 @@ ENV REACT_APP_API_URL=$REACT_APP_API_URL
 ENV REACT_APP_GOOGLE_CLIENT_ID=$REACT_APP_GOOGLE_CLIENT_ID
 ENV REACT_APP_GA_MEASUREMENT_ID=$REACT_APP_GA_MEASUREMENT_ID
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm npm install --silent
+RUN --mount=type=cache,target=/root/.npm npm install --silent --legacy-peer-deps
 COPY . .
 RUN npm run build
 
