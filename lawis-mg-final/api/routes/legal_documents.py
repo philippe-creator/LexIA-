@@ -15,16 +15,16 @@ _FORMATS = {
 
 
 @router.get("/types")
-async def get_document_types(current_user: CurrentUser):
+async def get_document_types(current_user: CurrentUser, lang: str = Query("fr", pattern="^(fr|en|ar)$")):
     """Liste les modèles disponibles et leurs champs (pour construire le formulaire)."""
-    return {"types": list_document_types()}
+    return {"types": list_document_types(lang)}
 
 
 @router.post("/{doc_type}/preview")
 async def preview_document(doc_type: str, request: DocumentGenerationRequest, current_user: CurrentUser):
     """Construit le document et renvoie ses blocs pour un aperçu à l'écran."""
     try:
-        return build_document(doc_type, request.data)
+        return build_document(doc_type, request.data, request.lang)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -38,7 +38,7 @@ async def download_document(
 ):
     """Génère et télécharge le document au format DOCX ou PDF."""
     try:
-        document = build_document(doc_type, request.data)
+        document = build_document(doc_type, request.data, request.lang)
     except ValueError as e:
         raise HTTPException(400, str(e))
 

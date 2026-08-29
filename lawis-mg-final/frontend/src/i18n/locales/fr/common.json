@@ -139,7 +139,8 @@
     "generating": "Génération...",
     "preview": "Aperçu",
     "downloading": "...",
-    "emptyPreview": "Remplissez le formulaire puis cliquez sur « Aperçu » pour visualiser le document."
+    "emptyPreview": "Remplissez le formulaire puis cliquez sur « Aperçu » pour visualiser le document.",
+    "documentLanguage": "Langue du document"
   },
   "calculators": {
     "title": "Calculateurs juridiques",

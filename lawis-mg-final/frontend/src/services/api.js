@@ -198,10 +198,10 @@ export const notificationService = {
 };
 
 export const legalDocumentService = {
-  types: () => api.get("/legal-documents/types"),
-  preview: (docType, data) => api.post(`/legal-documents/${docType}/preview`, { data }),
-  download: (docType, data, format) =>
-    api.post(`/legal-documents/${docType}/download?format=${format}`, { data }, { responseType: "blob" }),
+  types: (lang = "fr") => api.get(`/legal-documents/types?lang=${lang}`),
+  preview: (docType, data, lang = "fr") => api.post(`/legal-documents/${docType}/preview`, { data, lang }),
+  download: (docType, data, format, lang = "fr") =>
+    api.post(`/legal-documents/${docType}/download?format=${format}`, { data, lang }, { responseType: "blob" }),
 };
 
 export const documentService = {

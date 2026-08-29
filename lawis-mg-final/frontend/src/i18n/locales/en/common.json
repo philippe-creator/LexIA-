@@ -139,7 +139,8 @@
     "generating": "Generating...",
     "preview": "Preview",
     "downloading": "...",
-    "emptyPreview": "Fill in the form then click \"Preview\" to view the document."
+    "emptyPreview": "Fill in the form then click \"Preview\" to view the document.",
+    "documentLanguage": "Document language"
   },
   "calculators": {
     "title": "Legal Calculators",

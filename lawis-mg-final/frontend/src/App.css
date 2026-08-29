@@ -581,3 +581,63 @@ code { font-family: var(--font-mono); background: var(--bg); padding: 2px 6px; b
 .badge { position: absolute; top: -4px; right: -6px; min-width: 16px; height: 16px; background: var(--red); color: #fff; font-size: 10px; font-weight: 700; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
 .icon-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 7px; color: #94A3B8; transition: all .15s; }
 .icon-btn:hover { background: rgba(255,255,255,.08); color: #fff; }
+
+/* ─────────────────────────── RTL (arabe) ───────────────────────────
+   document.documentElement.dir passe à "rtl" quand la langue globale est
+   l'arabe (voir LanguageContext.jsx) — la plupart des mises en page flex
+   (nav, boutons, listes) se retournent déjà automatiquement, la propriété
+   CSS `direction` étant nativement prise en compte par flexbox. Seuls les
+   éléments utilisant des valeurs absolues (position: fixed/absolute avec
+   left/right, margin-left/right, border-left/right, translateX) ont besoin
+   d'un correctif explicite ci-dessous : ces propriétés ne sont pas
+   direction-aware. Approche pragmatique et ciblée (comme les 3 lignes RTL
+   déjà en place plus haut pour .messages-area) plutôt qu'une réécriture
+   intégrale en propriétés logiques (margin-inline-start, etc.) — un choix
+   assumé vu que l'arabe est une langue parmi trois, pas la langue
+   principale du produit. Les zones réellement utilisées (nav, chat,
+   formulaires, tableaux, cartes) sont couvertes ; de rares recoins peu
+   visités peuvent garder un léger biais LTR. */
+
+html[dir="rtl"] .main-sidebar { left: auto; right: 0; }
+html[dir="rtl"] .main-content-area { margin-left: 0; margin-right: var(--sidebar-w); }
+html[dir="rtl"] .layout.sidebar-collapsed .main-content-area { margin-right: var(--sidebar-w-sm); }
+html[dir="rtl"] .sidebar-collapse-btn { margin-left: 0; margin-right: auto; }
+
+html[dir="rtl"] .conv-sidebar { border-right: none; border-left: 1px solid var(--border); }
+html[dir="rtl"] .source-panel { border-left: none; border-right: 1px solid var(--border); }
+
+html[dir="rtl"] .doc-scope-banner button,
+html[dir="rtl"] .feedback-group,
+html[dir="rtl"] .chat-error button,
+html[dir="rtl"] .ref-score,
+html[dir="rtl"] .auth-resend-link { margin-left: 0; margin-right: auto; }
+
+html[dir="rtl"] .input-password .form-input { padding-right: 12px; padding-left: 40px; }
+html[dir="rtl"] .pwd-toggle { right: auto; left: 10px; }
+
+html[dir="rtl"] .source-excerpt, html[dir="rtl"] .ref-excerpt {
+  border-left: none; border-right: 3px solid var(--blue-mid);
+  border-radius: 6px 0 0 6px;
+}
+
+html[dir="rtl"] .example-question,
+html[dir="rtl"] .demo-examples-label,
+html[dir="rtl"] .legal-page ul { text-align: right; }
+html[dir="rtl"] .legal-page ul { padding-left: 0; padding-right: 20px; }
+
+html[dir="rtl"] .stream-cursor { margin-left: 0; margin-right: 2px; }
+
+/* Menu mobile : le tiroir de la sidebar glisse depuis la droite en RTL. */
+@media (max-width: 768px) {
+  html[dir="rtl"] .mobile-topbar-toggle { left: auto; right: 12px; }
+  html[dir="rtl"] .mobile-sidebar-close { margin-left: 0; margin-right: 6px; }
+  html[dir="rtl"] .main-sidebar { transform: translateX(100%); }
+  html[dir="rtl"] .layout.mobile-menu-open .main-sidebar { transform: translateX(0); }
+  html[dir="rtl"] .conv-sidebar { left: auto; right: 0; transform: translateX(100%); }
+  html[dir="rtl"] .conv-sidebar.open { transform: translateX(0); }
+}
+
+/* Cloche de notifications : ancrée côté sidebar, la pastille non-lue et le
+   panneau déroulant doivent s'ouvrir du bon côté une fois la sidebar à droite. */
+html[dir="rtl"] .badge { right: auto; left: -6px; }
+html[dir="rtl"] .notification-dropdown { left: auto; right: 16px; }

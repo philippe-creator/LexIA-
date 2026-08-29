@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Scale, MessageSquare, BarChart2, GitCompare, Hash, Upload, Calculator, FileText, LogOut, ChevronLeft, ChevronRight, Bell, Menu, X } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import NotificationBell from "./NotificationBell";
 import LanguageSwitcher from "../LanguageSwitcher";
 
@@ -20,6 +21,7 @@ const ROLE_KEYS = { admin: "role.admin", juriste: "role.juriste", avocat: "role.
 
 export default function Layout({ children }) {
   const { t } = useTranslation();
+  const { lang } = useLanguage();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
@@ -42,7 +44,7 @@ export default function Layout({ children }) {
           <div style={{display:"flex",alignItems:"center",gap:4}}>
             <NotificationBell />
             <button className="sidebar-collapse-btn" onClick={() => setCollapsed((p) => !p)}>
-              {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+              {collapsed !== (lang === "ar") ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
             </button>
             <button className="mobile-sidebar-close" onClick={closeMobile} aria-label={t("nav.closeMenu")}><X size={18} /></button>
           </div>

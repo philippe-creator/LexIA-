@@ -2,16 +2,18 @@ import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { FileText, Download, FileType, Eye, AlertCircle } from "lucide-react";
 import { legalDocumentService, extractErrorMessage } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
 
 // Rend un bloc de la trame renvoyée par l'API dans l'aperçu à l'écran.
-function PreviewBlock({ block }) {
+function PreviewBlock({ block, rtl }) {
   const { style, text } = block;
   if (style === "spacer") return <div style={{ height: 10 }} />;
   if (style === "title") return <h3 className="legaldoc-preview-title">{text}</h3>;
   if (style === "subtitle") return <p className="legaldoc-preview-subtitle">{text}</p>;
   if (style === "heading") return <p className="legaldoc-preview-heading">{text}</p>;
   if (style === "note") return <p className="legaldoc-preview-note">{text}</p>;
-  const align = style === "body_center" ? "center" : style === "body_right" ? "right" : "justify";
+  let align = style === "body_center" ? "center" : style === "body_right" ? "right" : "justify";
+  if (rtl && align === "justify") align = "right";
   return <p className="legaldoc-preview-body" style={{ textAlign: align }}>{text}</p>;
 }
 
@@ -29,7 +31,7 @@ function Field({ field, value, onChange }) {
         <textarea rows={3} {...common} />
       ) : field.type === "select" ? (
         <select {...common}>
-          {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
+          {field.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       ) : (
         <input type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} {...common} />
@@ -38,8 +40,12 @@ function Field({ field, value, onChange }) {
   );
 }
 
+const DOC_LANGS = ["fr", "en", "ar"];
+
 export default function LegalDocumentGenerator() {
   const { t } = useTranslation();
+  const { lang } = useLanguage();
+  const [docLang, setDocLang] = useState(lang);
   const [types, setTypes] = useState([]);
   const [activeKey, setActiveKey] = useState(null);
   const [formData, setFormData] = useState({});
@@ -48,24 +54,35 @@ export default function LegalDocumentGenerator() {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(null);
 
+  // La langue du document suit la langue globale par défaut, mais reste
+  // modifiable indépendamment : la langue d'un contrat est un choix
+  // juridique, pas seulement une préférence d'affichage.
+  useEffect(() => { setDocLang(lang); }, [lang]);
+
   useEffect(() => {
-    legalDocumentService.types()
+    legalDocumentService.types(docLang)
       .then((res) => {
         setTypes(res.data.types);
-        if (res.data.types.length) selectType(res.data.types[0]);
+        setPreview(null);
+        // Les libellés changent de langue mais les noms de champs et les
+        // valeurs internes des options ("cadre", "oui"...) restent stables :
+        // on ne réinitialise pas la saisie déjà en cours de l'utilisateur.
+        const current = res.data.types.find((tp) => tp.key === activeKey) || res.data.types[0];
+        if (current && !activeKey) selectType(current);
+        else if (current) setActiveKey(current.key);
       })
       .catch(() => setError(t("legalDoc.loadError")));
-  }, []); // eslint-disable-line
+  }, [docLang]); // eslint-disable-line
 
-  const activeType = types.find((t) => t.key === activeKey);
+  const activeType = types.find((tp) => tp.key === activeKey);
 
-  const selectType = (t) => {
-    setActiveKey(t.key);
+  const selectType = (tp) => {
+    setActiveKey(tp.key);
     // Les champs select affichent leur 1re option par défaut : on l'inscrit dans
     // l'état pour qu'elle soit envoyée même si l'utilisateur n'y touche pas.
     const initial = {};
-    t.fields.forEach((f) => {
-      if (f.type === "select" && f.options?.length) initial[f.name] = f.options[0];
+    tp.fields.forEach((f) => {
+      if (f.type === "select" && f.options?.length) initial[f.name] = f.options[0].value;
     });
     setFormData(initial);
     setPreview(null);
@@ -80,7 +97,7 @@ export default function LegalDocumentGenerator() {
   const doPreview = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await legalDocumentService.preview(activeKey, formData);
+      const res = await legalDocumentService.preview(activeKey, formData, docLang);
       setPreview(res.data);
     } catch (e) {
       setError(extractErrorMessage(e, t("legalDoc.generateError")));
@@ -90,7 +107,7 @@ export default function LegalDocumentGenerator() {
   const doDownload = async (format) => {
     setError(null); setDownloading(format);
     try {
-      const res = await legalDocumentService.download(activeKey, formData, format);
+      const res = await legalDocumentService.download(activeKey, formData, format, docLang);
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -107,15 +124,17 @@ export default function LegalDocumentGenerator() {
     } finally { setDownloading(null); }
   };
 
+  const rtl = docLang === "ar";
+
   return (
     <div className="compare-container">
       <div className="compare-header"><FileText size={20} /><h2>{t("legalDoc.title")}</h2></div>
       <p className="compare-subtitle">{t("legalDoc.subtitle")}</p>
 
       <div className="calc-tabs">
-        {types.map((t) => (
-          <button key={t.key} className={`domain-chip ${activeKey === t.key ? "active" : ""}`} onClick={() => selectType(t)}>
-            <FileText size={14} /><span>{t.label}</span>
+        {types.map((tp) => (
+          <button key={tp.key} className={`domain-chip ${activeKey === tp.key ? "active" : ""}`} onClick={() => selectType(tp)}>
+            <FileText size={14} /><span>{tp.label}</span>
           </button>
         ))}
       </div>
@@ -123,6 +142,12 @@ export default function LegalDocumentGenerator() {
       {activeType && (
         <div className="legaldoc-layout">
           <div className="legaldoc-form">
+            <div className="selector-group">
+              <label>{t("legalDoc.documentLanguage")}</label>
+              <select className="select-input" value={docLang} onChange={(e) => setDocLang(e.target.value)}>
+                {DOC_LANGS.map((l) => <option key={l} value={l}>{t(`language.${l}`)}</option>)}
+              </select>
+            </div>
             <div className="legaldoc-ref"><AlertCircle size={13} /> {activeType.legal_reference}</div>
             <div className="calc-fields legaldoc-fields">
               {activeType.fields.map((f) => (
@@ -145,8 +170,8 @@ export default function LegalDocumentGenerator() {
 
           <div className="legaldoc-preview">
             {preview ? (
-              <div className="legaldoc-preview-sheet">
-                {preview.blocks.map((b, i) => <PreviewBlock key={i} block={b} />)}
+              <div className="legaldoc-preview-sheet" dir={rtl ? "rtl" : "ltr"}>
+                {preview.blocks.map((b, i) => <PreviewBlock key={i} block={b} rtl={rtl} />)}
               </div>
             ) : (
               <div className="legaldoc-preview-empty">
